@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <fstream>
 #include <iomanip>
+#include <unistd.h>
 #include "buddyset.h"
 #include "buddy.h"
 
@@ -212,7 +213,7 @@ int Buddy::read_messagestr(string &msgstr) const
     int IDLength = 4;
     int lenLength = 4;
     int typeLength = 1;
-    int headerLength = IDLength + lenLength + typeLength;
+    unsigned int headerLength = IDLength + lenLength + typeLength;
     unsigned char header[headerLength];
 
     size_t res = read_record(header, headerLength);

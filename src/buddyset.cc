@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <gnutls/x509.h>
+#include <unistd.h>
 #include "buddyset.h"
 
 using namespace std;

@@ -1,0 +1,2 @@
+# DKG
+Distributed Key Generator

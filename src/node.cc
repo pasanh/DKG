@@ -15,8 +15,6 @@
 //  Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301 USA
 
-
-
 #include "application.h"
 #include "usermessage.h"
 #include "networkmessage.h"
@@ -27,6 +25,15 @@
 #include <iomanip>
 #include <sys/time.h>
 #include <fstream>
+
+#define DEFAULT_PAIRING_PARAM "paring.param"
+#define DEFAULT_SYSTEM_PARAM "system.param"
+#define DEFAULT_MESSAGE_LOG "message.log"
+#define DEFAULT_TIMEOUT_LOG "timeout.log"
+#define DEFAULT_PORT 9900
+#define DEFAULT_COMMITMENT_TYPE Feldman_Matrix
+#define DEFAULT_PHASE 0
+#define DEFAULT_NON_RESPONSIVE_LEADER 0
 
 typedef enum {LEADER_UNCONFIRMED, UNDER_RECOVERY, FUNCTIONAL, AGREEMENT_STARTED, AGREEMENT_COMPLETED, LEADER_CHANGE_STARTED, DKG_COMPLETED} NodeState;
 
@@ -40,9 +47,8 @@ typedef struct commitmentandshare CommitmentAndShare;
 class Node : public Application {
 public:
   Node(const char *pairingfile, const char *sysparamfile, const char* msglogfile, const char* timeoutlogfile, in_addr_t listen_addr, in_port_t listen_port,
-  	   const char *certfile, const char *keyfile, const char *contactlistfile, Phase ph, CommitmentType commType =  Feldman_Matrix, int nrln = 0):
+  	   const char *certfile, const char *keyfile, const char *contactlistfile, Phase ph, CommitmentType commType = Feldman_Matrix, int nrln = 0):
 	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph),msgLog(msglogfile,ios::out), timeoutLog(timeoutlogfile,ios::out){
-//  		 Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph){
 
 	selfID  = NodeID(buddyset.get_my_id());
 	non_responsive_leader_number = nrln;
@@ -1258,28 +1264,88 @@ void Node::changePhase(){
 	
 }
 
+void printUsage()
+{
+	cerr << "Usage: node -p portnum -a pairing_param -s system_param -m messagelogfile -t timeoutlogfile -h phase -c commitmenttype -l non_responsive_leader_number certfile keyfile contactlist" << endl;;
+	cerr << "    -p portnum - Node listen port (Optional - default " << DEFAULT_PORT << ")" << endl;
+	cerr << "    -a pairing_param - Pairing Parameter File (Optional - default \"" << DEFAULT_PAIRING_PARAM << "\")" << endl;
+	cerr << "    -s system_param - System Parameter File (Optional - default \"" << DEFAULT_SYSTEM_PARAM << "\")" << endl;
+	cerr << "    -m messagelogfile - Message Log File (Optional - default \"" << DEFAULT_MESSAGE_LOG << "\")" << endl;
+	cerr << "    -t timeoutlogfile - Timeout Log File (Optional - default \"" << DEFAULT_TIMEOUT_LOG << "\")" << endl;
+	cerr << "    -h phase - System Phase (Optional - default " << DEFAULT_PHASE << ")" << endl;
+	cerr << "        0 - Initial phase" << endl;
+	cerr << "        > 0 - Node is under recovery" << endl;
+	cerr << "    -c commitmenttype - Commitment Type (Optional - default " << DEFAULT_COMMITMENT_TYPE << ")" << endl;
+	cerr << "        0 - Feldman Matrix" << endl;
+	cerr << "        1 - Feldman Vector" << endl;
+	cerr << "    -l non_responsive_leader_number - Value of non responsive leader (Optional - default " << DEFAULT_NON_RESPONSIVE_LEADER << ")" << endl;
+	cerr << "        0 - Leader is active" << endl;
+	cerr << "        > 0 - Non responsive leader ID" << endl;
+	cerr << "    certfile - Certificate File (Required)" << endl;
+	cerr << "    keyfile - Key File (Required)" << endl;
+	cerr << "    contactlist - Node List File (Required)" << endl;
+	exit(1);
+}
+
 int main(int argc, char **argv)
 {
   Message::init_ctr();
+  
+  in_port_t portnum = DEFAULT_PORT;
+  const char *pairing_param = DEFAULT_PAIRING_PARAM;
+  const char *system_param = DEFAULT_SYSTEM_PARAM;
+  const char *messagelogfile = DEFAULT_MESSAGE_LOG;
+  const char *timeoutlogfile = DEFAULT_TIMEOUT_LOG;
+  CommitmentType type = DEFAULT_COMMITMENT_TYPE;
+  Phase ph = DEFAULT_PHASE;
+  int non_responsive_leader_number = DEFAULT_NON_RESPONSIVE_LEADER;
 
-  Phase ph;
-  if (argc != 10) {
-	cerr << "Usage: " << argv[0] <<" portnum certfile keyfile contactlist pairing_param system_param messagelogfile timeoutlogfile phase CommitmentType[0/1] non_responsive_leader_number\n";
-	exit(1);
+  int c;
+  while ((c = getopt(argc, argv, "p:a:s:m:t:h:c:l:")) != -1) {
+    switch(c) {
+	  case 'p':
+		portnum = atoi(optarg);
+		break;
+	  case 'a':
+	    pairing_param = optarg;
+		break;
+	  case 's':
+	    system_param = optarg;
+		break;
+	  case 'm':
+	    messagelogfile = optarg;
+		break;
+	  case 't':
+	    timeoutlogfile = optarg;
+		break;
+	  case 'h':
+	    ph = atoi(optarg);
+		break;
+	  case 'c':
+	    type = (CommitmentType)atoi(optarg);
+		break;
+	  case 'l':
+	    non_responsive_leader_number = atoi(optarg);
+		break;
+	  case '?':
+	    if (isprint (optopt))
+		  cerr << "Unknown option '-" << optopt << "'"<< endl;
+	    print_usage();
+		break;
+	  default:
+		print_usage();
+		break;
+	}
   }
-  in_port_t portnum = atoi(argv[1]);
-  const char *certfile = argv[2];
-  const char *keyfile = argv[3];
-  const char *contactlist = argv[4];
-  const char *pairing_param = argv[5];
-  const char *system_param = argv[6];
-  const char *messagelogfile = argv[7];
-  const char *timeoutlogfile = argv[8];
 
-  ph = atoi(argv[9]);
-  CommitmentType type = (CommitmentType)atoi(argv[10]);
+  if(argc - optind != 4) {
+    print_usage();
+  }
 
-  int non_responsive_leader_number = atoi(argv[11]);
+  int argv_idx = optind;
+  const char *certfile = argv[argv_idx++];
+  const char *keyfile = argv[argv_idx++];
+  const char *contactlist = argv[argv_idx++];
 
   gnutls_global_init();
   Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, INADDR_ANY, portnum, 

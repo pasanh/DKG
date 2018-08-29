@@ -39,9 +39,9 @@ typedef struct commitmentandshare CommitmentAndShare;
 
 class Node : public Application {
 public:
-  Node(const char *pairingfile, const char *sysparamfile, in_addr_t listen_addr, in_port_t listen_port,
+  Node(const char *pairingfile, const char *sysparamfile, const char* msglogfile, const char* timeoutlogfile, in_addr_t listen_addr, in_port_t listen_port,
   	   const char *certfile, const char *keyfile, const char *contactlistfile, Phase ph, CommitmentType commType =  Feldman_Matrix, int nrln = 0):
-	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph),msgLog("message.log",ios::out), timeoutLog("timeout.log",ios::out){
+	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph),msgLog(msglogfile,ios::out), timeoutLog(timeoutlogfile,ios::out){
 //  		 Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph){
 
 	selfID  = NodeID(buddyset.get_my_id());
@@ -1263,22 +1263,26 @@ int main(int argc, char **argv)
   Message::init_ctr();
 
   Phase ph;
-  if (argc != 8) {
-	cerr << "Usage: " << argv[0] <<" portnum certfile keyfile contactlist phase CommitmentType[0/1] non_responsive_leader_number\n";
+  if (argc != 10) {
+	cerr << "Usage: " << argv[0] <<" portnum certfile keyfile contactlist pairing_param system_param messagelogfile timeoutlogfile phase CommitmentType[0/1] non_responsive_leader_number\n";
 	exit(1);
   }
   in_port_t portnum = atoi(argv[1]);
   const char *certfile = argv[2];
   const char *keyfile = argv[3];
   const char *contactlist = argv[4];
+  const char *pairing_param = argv[5];
+  const char *system_param = argv[6];
+  const char *messagelogfile = argv[7];
+  const char *timeoutlogfile = argv[8];
 
-  ph = atoi(argv[5]);
-  CommitmentType type = (CommitmentType)atoi(argv[6]);
+  ph = atoi(argv[9]);
+  CommitmentType type = (CommitmentType)atoi(argv[10]);
 
-  int non_responsive_leader_number = atoi(argv[7]);
+  int non_responsive_leader_number = atoi(argv[11]);
 
   gnutls_global_init();
-  Node node("pairing.param", "system.param", INADDR_ANY, portnum, 
+  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, INADDR_ANY, portnum, 
 			certfile, keyfile, contactlist, ph, type, non_responsive_leader_number);
   return node.run();
 }

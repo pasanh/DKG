@@ -28,7 +28,8 @@ my $keyfile = "$exe_dir/certs/$node-key.pem";
 remove_tree($log_dir);
 make_path($log_dir);
 
-my $cmd = "$node_cmd -a $pairing_param -s $system_param -m $message_log -t $timeout_log -h 0 -c 0 -l 0 $certfile $keyfile $contactlist";
+#my $cmd = "$node_cmd -a $pairing_param -s $system_param -m $message_log -t $timeout_log -h 0 -c 0 -l 0 $certfile $keyfile $contactlist";
+my $cmd = "$node_cmd -a $pairing_param -s $system_param -h 0 -c 0 -l 0 $certfile $keyfile $contactlist";
 print "$cmd\n";
 exec $cmd;
 

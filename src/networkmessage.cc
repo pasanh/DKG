@@ -646,8 +646,8 @@ LeaderChangeMessage::LeaderChangeMessage(const BuddySet &buddyset, Phase ph,Node
   set_netMsgStr(body);
 }
 
-LeaderChangeMessage::LeaderChangeMessage(const BuddySet &buddyset,/* Phase ph,*/ NodeID nextLeader, bool includeSignature)
-  :ph(0), nextLeader(nextLeader),msgType(NET_MSG_NONE){
+LeaderChangeMessage::LeaderChangeMessage(const BuddySet &buddyset, Phase ph, NodeID nextLeader, bool includeSignature)
+  :ph(ph), nextLeader(nextLeader),msgType(NET_MSG_NONE){
 	//cout << "3. msg_ctr = " << msg_ctr << endl;
 
   string body;

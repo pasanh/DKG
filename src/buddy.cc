@@ -321,7 +321,7 @@ void Buddy::writer_thread(void) {
     }
 }
 
-void Buddy::help(fstream &msgLog) {
+void Buddy::help(ofstream &msgLog) {
 	timeval now;
 	pthread_mutex_lock (&mutex);
 	while (!sentqueue.empty()) {

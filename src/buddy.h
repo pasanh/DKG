@@ -57,7 +57,7 @@ class Buddy{
     void set_fd (int fd) {this->fd = fd;}
      void set_cert(string cert);
      void send_cert(int usefd = -1) const;
-     void help(fstream &msgLog);
+     void help(ofstream &msgLog);
      queue<string> msgqueue;
      queue<string> sentqueue;
      pthread_mutex_t mutex;

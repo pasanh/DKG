@@ -225,7 +225,7 @@ public:
   LeaderChangeMessage(const BuddySet &buddyset, Phase ph, NodeID nextLeader, 
   					NetworkMessageType msgType, const DKGEchoOrReadyMessage &dkgEchoOrReadyMsg, 
   					const map <NodeID, string>& dkgEchoOrReadyMsgDSAs, bool includeSignature = true);
-  LeaderChangeMessage(const BuddySet &buddyset, /*Phase ph,*/ NodeID nextLeader, bool includeSignature = true);
+  LeaderChangeMessage(const BuddySet &buddyset, Phase ph, NodeID nextLeader, bool includeSignature = true);
   					 					
   LeaderChangeMessage(const Buddy *buddy, const string &str, int g_recv_ID = 0);
   string toString() const;

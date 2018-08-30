@@ -31,8 +31,10 @@
 
 #define DEFAULT_PAIRING_PARAM "pairing.param"
 #define DEFAULT_SYSTEM_PARAM "system.param"
-#define DEFAULT_MESSAGE_LOG "message.log"
-#define DEFAULT_TIMEOUT_LOG "timeout.log"
+// #define DEFAULT_MESSAGE_LOG "message.log"
+#define DEFAULT_MESSAGE_LOG NULL
+// #define DEFAULT_TIMEOUT_LOG "timeout.log"
+#define DEFAULT_TIMEOUT_LOG NULL
 #define DEFAULT_PORT 9900
 #define DEFAULT_COMMITMENT_TYPE Feldman_Matrix
 #define DEFAULT_PHASE 0
@@ -47,18 +49,30 @@ struct commitmentandshare{
 
 typedef struct commitmentandshare CommitmentAndShare;
 
+static inline void setStreamFile(ofstream& ofs, const ostream& sfs, const char* file) 
+{
+	if(file) {
+		ofs.open(file);
+	} else {
+		ofs.copyfmt(sfs);
+		ofs.clear(sfs.rdstate());
+		ofs.basic_ios<char>::rdbuf(sfs.rdbuf());
+	}
+}
+
 class Node : public Application {
 public:
   Node(const char *pairingfile, const char *sysparamfile, const char* msglogfile, const char* timeoutlogfile, in_addr_t listen_addr, in_port_t listen_port,
   	   const char *certfile, const char *keyfile, const char *contactlistfile, Phase ph, CommitmentType commType = Feldman_Matrix, int nrln = 0):
-	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph),msgLog(msglogfile,ios::out), timeoutLog(timeoutlogfile,ios::out){
+	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph)
+{
+	setStreamFile(msgLog, cout, msglogfile);
+	setStreamFile(timeoutLog, cout, timeoutlogfile);
 
 	selfID  = NodeID(buddyset.get_my_id());
 	non_responsive_leader_number = nrln;
 
-	//For ph >0, the node is under recovery
-	//For ph=0, the leader is LEADER_UNCONFIRMED
-	nodeState = (ph == 0)?FUNCTIONAL:UNDER_RECOVERY; if (selfID == buddyset.get_leader()) nodeState = LEADER_UNCONFIRMED;
+	nodeState = FUNCTIONAL; if (selfID == buddyset.get_leader()) nodeState = LEADER_UNCONFIRMED;
 	
 	this->commType = commType;
 	result.C = Commitment(sysparams, activeNodes, commType);
@@ -72,12 +86,13 @@ public:
 private:
 	NodeID selfID;
 	NodeState nodeState;
-	set <NodeID> SendReceived;//This keeps track whether send message is received from a node
 	CommitmentType commType;
+	CommitmentAndShare result; //Final Commitment and Share 
+	
+	set <NodeID> SendReceived;//This keeps track whether send message is received from a node
 	multimap <NodeID, Commitment> C; //Commitments received
 	map <NodeID, CommitmentAndShare> C_final; //DealerIDs and commitment+shares completed
 	set <NodeID> DecidedVSSs;//DealerIDs for the dealer set (size = t+1) finalized for the node  
-	CommitmentAndShare result; //Final Commitment and Share 
 	
 	NodeID nextSmallestLeader;// L++ used during LeaderChange
 	map <LeaderChangeMessage, map<NodeID, string>, LeaderChangeMessageCmp > leaderChangeMsg;// LeaderChange message received
@@ -96,8 +111,8 @@ private:
 
 	TimerID leaderChangeTimerID;
 	
-	fstream msgLog;
-	fstream timeoutLog;
+	ofstream msgLog;
+	ofstream timeoutLog;
 	bool timer_set;
 	
 	map <NodeID, G1> clientPublicKeys;
@@ -110,6 +125,7 @@ private:
 	void completeDKG(); //(Try to) complete DKG of the DecidedVSSs set
 	void sendLeaderChangeMessage(NodeID nextLeader);
 	void changePhase();
+	void resetState();
 };
 
 int Node::run()
@@ -168,40 +184,39 @@ int Node::run()
   timeoutLog << "Incremental Change = " << incremental_change << endl;
   timeoutLog << "==============================" << endl;
 
-  if(!ph){//ph =0; Send LeaderChange to the leader, which it may use with the DKGSend
-		//The leader now has wait for 2t+1 LeaderChange Message before starting the agreement
-		measure_init();
-		LeaderChangeMessage leadChg = LeaderChangeMessage(buddyset, buddyset.get_leader());
-		buddyset.send_message(buddyset.get_leader(),leadChg);
+  // Send LeaderChange to the leader, which it may use with the DKGSend
+  // The leader now has wait for 2t+1 LeaderChange Message before starting the agreement
+  measure_init();
+  LeaderChangeMessage leadChg = LeaderChangeMessage(buddyset, ph, buddyset.get_leader());
+  buddyset.send_message(buddyset.get_leader(),leadChg);
 
+  gettimeofday (&now, NULL);
+  msgLog << "LEADER_CHANGE " << leadChg.get_ID() << " for " << "* SENT from " << selfID <<
+	" to " << buddyset.get_leader() << " at " <<  now.tv_sec << "." << setw(6) <<
+	now.tv_usec << " standard 1" << endl;
+
+	if(selfID <= 2*sysparams.get_t()+1){
+	//	if (selfID != buddyset.get_leader())
+			//sleep(10);
+		Zr secret(sysparams.get_Pairing(), true);//Start sharing
+		//Initialize a HybribVSS with the above generated secret
+		hybridVSSInit(secret);
+	}			
+	gettimeofday (&now, NULL);
+	if (selfID == buddyset.get_leader()) {
+		msgLog << "* I am ready to receive at " <<  now.tv_sec << "." << setw(6) <<
+			now.tv_usec << endl;
+	}
+
+	// upon starting, send VSS_HELP messages to everyone in the system
+	vector<NodeID>::iterator iter;
+	for(iter = activeNodes.begin();iter != activeNodes.end(); ++iter){
+		if (*iter == selfID)
+			continue;
+		VSSHelpMessage vssHelp (buddyset, ph);
+		buddyset.send_message(*iter,vssHelp);
 		gettimeofday (&now, NULL);
-		msgLog << "LEADER_CHANGE " << leadChg.get_ID() << " for " << "* SENT from " << selfID <<
-				" to " << buddyset.get_leader() << " at " <<  now.tv_sec << "." << setw(6) <<
-				now.tv_usec << " standard 1" << endl;
-
-		if(selfID <= 2*sysparams.get_t()+1){
-		//	if (selfID != buddyset.get_leader())
-				//sleep(10);
-			Zr secret(sysparams.get_Pairing(), true);//Start sharing
-			//Initialize a HybribVSS with the above generated secret
-			hybridVSSInit(secret);
-		}			
-		gettimeofday (&now, NULL);
-		if (selfID == buddyset.get_leader()) {
-			msgLog << "* I am ready to receive at " <<  now.tv_sec << "." << setw(6) <<
-				now.tv_usec << endl;
-		}
-
-		// upon starting, send VSS_HELP messages to everyone in the system
-		vector<NodeID>::iterator iter;
-		for(iter = activeNodes.begin();iter != activeNodes.end(); ++iter){
-			if (*iter == selfID)
-				continue;
-			VSSHelpMessage vssHelp (buddyset, ph);
-			buddyset.send_message(*iter,vssHelp);
-			gettimeofday (&now, NULL);
-			msgLog << "VSS_HELP " << vssHelp.get_ID() << " for " << "* SENT from " << selfID << " to " << *iter << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << endl;
-		}
+		msgLog << "VSS_HELP " << vssHelp.get_ID() << " for " << "* SENT from " << selfID << " to " << *iter << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 	}
    
   int first_time = 1;
@@ -230,20 +245,14 @@ int Node::run()
 
 	  case SHARE:{
 		//ShareMessage *sm = static_cast<ShareMessage*>(um);
-		if (ph != 0) {
-		  cerr<<"Phase is greater than 0. Node cannot share a new value"<<endl;
-		  break;
-		}
 		Zr secret(sysparams.get_Pairing(), true);
 		//Initialize a HybribVSS with the above generated secret
 		hybridVSSInit(secret);
 	  }break;
 
 	 case CONFIRM_LEADER:{
-		if(!ph){//ph =0; Send LeaderChange to the leader, which it may use with the DKGSend
-			LeaderChangeMessage leadChg = LeaderChangeMessage(buddyset, buddyset.get_leader());
-			buddyset.send_message(buddyset.get_leader(),leadChg);
-		}	 	
+		LeaderChangeMessage leadChg = LeaderChangeMessage(buddyset, ph, buddyset.get_leader());
+		buddyset.send_message(buddyset.get_leader(),leadChg);
 	 }break;
 
 	  case STATE_INFORMATION:{
@@ -332,7 +341,7 @@ int Node::run()
 		case VSS_SEND:{
 			VSSSendMessage *vssSend = static_cast<VSSSendMessage*>(nm);
 			gettimeofday(&now, NULL);
-			msgLog << "VSS_SEND " << vssSend -> get_ID() << " for " << "* RECEIVED from " << buddyID << " to " << selfID << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << endl;
+			msgLog << "Phase: " << ph << " VSS_SEND " << vssSend->get_ID() << " for " << "* RECEIVED from " << buddyID << " to " << selfID << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 			//if (selfID == buddyset.get_leader()) {
 			//}
 			if(ph > vssSend->ph) {
@@ -345,6 +354,7 @@ int Node::run()
 				//condition below make sure that if the DKG is complete, then VSS only for NodeID the decided set continue
 				((nodeState != AGREEMENT_COMPLETED)||(find(DecidedVSSs.begin(), DecidedVSSs.end(),buddyID) != DecidedVSSs.end()))) {
 				//Send message from the same phase
+				cerr << "PROCESS SEND" << endl;
 				if(vssSend->C.verifyPoly(sysparams,selfID,vssSend->a)){							
 					//multimap<NodeID, Commitment>::iterator> ret;
 					//bool commitmentAlreadyExists = false;
@@ -1092,6 +1102,8 @@ void Node::hybridVSSInit(const Zr& secret){
 
   	Commitment C(sysparams,activeNodes, fxy, commType);
 
+   cerr << "HERE" << endl;
+
   //sending send messages
   vector<NodeID>::iterator iter;
   //cerr << "Sending sharing secret" << endl;
@@ -1228,12 +1240,31 @@ void Node::completeDKG(){
 			<< now.tv_sec << "." << setw(6) << now.tv_usec << " :)" <<endl;
 	cout<<"DKG_COMPLETE * for " <<buddyset.get_leader()<< " RS from " << selfID << " to * at "
 				<< now.tv_sec << "." << setw(6) << now.tv_usec << " :)" <<endl;
-	//DecidedVSSs broadcast and decided VSSs are now completed
-	nodeState = DKG_COMPLETED;
 	//fstream logFStream("dkg.log",ios::out); logFStream <<selfID<<" "<<buddyset.get_leader()<<" ";logFStream.close();
 	// Get performance measurements
 	measure_now();
-	msgLog.close();	
+
+	//DecidedVSSs broadcast and decided VSSs are now completed
+	// Increment phase and reset node state
+	ph++;
+	resetState();
+}
+
+void Node::resetState()
+{
+	// Reset the node state
+	nodeState = FUNCTIONAL; if (selfID == buddyset.get_leader()) nodeState = LEADER_UNCONFIRMED;
+
+	// Clear all received message maps
+	SendReceived.clear();
+	C.clear();
+	C_final.clear();
+	DecidedVSSs.clear();
+	vssReadyMsg.clear();
+	vssReadyMsgSelected.clear();
+	dkgEchoOrReadyMsgReceived.clear();
+	
+	msgLog << "ResetState PHASE: " << ph << " NEW NODE STATE: " << nodeState << endl;
 }
 
 void Node::sendLeaderChangeMessage(NodeID nextLeader){

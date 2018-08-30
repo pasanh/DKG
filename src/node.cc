@@ -29,7 +29,7 @@
 #include <string.h>
 #include <errno.h>
 
-#define DEFAULT_PAIRING_PARAM "paring.param"
+#define DEFAULT_PAIRING_PARAM "pairing.param"
 #define DEFAULT_SYSTEM_PARAM "system.param"
 #define DEFAULT_MESSAGE_LOG "message.log"
 #define DEFAULT_TIMEOUT_LOG "timeout.log"

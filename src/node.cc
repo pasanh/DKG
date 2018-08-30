@@ -25,6 +25,9 @@
 #include <iomanip>
 #include <sys/time.h>
 #include <fstream>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
 
 #define DEFAULT_PAIRING_PARAM "paring.param"
 #define DEFAULT_SYSTEM_PARAM "system.param"
@@ -1287,6 +1290,14 @@ void printUsage()
 	exit(1);
 }
 
+void accessOrExit(const char* file, int mode) 
+{
+	if(access(file, mode) != 0) {
+		cerr << "Unable to access " << file << ": " << strerror(errno) << endl;
+		exit(1);
+	}
+}
+
 int main(int argc, char **argv)
 {
   Message::init_ctr();
@@ -1330,22 +1341,28 @@ int main(int argc, char **argv)
 	  case '?':
 	    if (isprint (optopt))
 		  cerr << "Unknown option '-" << optopt << "'"<< endl;
-	    print_usage();
+	    printUsage();
 		break;
 	  default:
-		print_usage();
+		printUsage();
 		break;
 	}
   }
 
-  if(argc - optind != 4) {
-    print_usage();
+  if(argc - optind != 3) {
+    printUsage();
   }
 
   int argv_idx = optind;
   const char *certfile = argv[argv_idx++];
   const char *keyfile = argv[argv_idx++];
   const char *contactlist = argv[argv_idx++];
+
+  accessOrExit(pairing_param, R_OK);
+  accessOrExit(system_param, R_OK);
+  accessOrExit(certfile, R_OK);
+  accessOrExit(keyfile, R_OK);
+  accessOrExit(contactlist, R_OK);
 
   gnutls_global_init();
   Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, INADDR_ANY, portnum, 

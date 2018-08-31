@@ -194,7 +194,7 @@ int Node::run()
   msgLog << "LEADER_CHANGE " << leadChg.get_ID() << " for " << "* SENT from " << selfID <<
 	" to " << buddyset.get_leader() << " at " <<  now.tv_sec << "." << setw(6) <<
 	now.tv_usec << " standard 1" << endl;
-
+/*
 	if(selfID <= 2*sysparams.get_t()+1){
 	//	if (selfID != buddyset.get_leader())
 			//sleep(10);
@@ -202,6 +202,7 @@ int Node::run()
 		//Initialize a HybribVSS with the above generated secret
 		hybridVSSInit(secret);
 	}			
+	*/
 	gettimeofday (&now, NULL);
 	if (selfID == buddyset.get_leader()) {
 		msgLog << "* I am ready to receive at " <<  now.tv_sec << "." << setw(6) <<
@@ -1102,8 +1103,6 @@ void Node::hybridVSSInit(const Zr& secret){
 
   	Commitment C(sysparams,activeNodes, fxy, commType);
 
-   cerr << "HERE" << endl;
-
   //sending send messages
   vector<NodeID>::iterator iter;
   //cerr << "Sending sharing secret" << endl;
@@ -1253,7 +1252,7 @@ void Node::completeDKG(){
 void Node::resetState()
 {
 	// Reset the node state
-	nodeState = FUNCTIONAL; if (selfID == buddyset.get_leader()) nodeState = LEADER_UNCONFIRMED;
+	nodeState = FUNCTIONAL;
 
 	// Clear all received message maps
 	SendReceived.clear();

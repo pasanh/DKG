@@ -20,6 +20,7 @@
 #include "networkmessage.h"
 #include "timer.h"
 #include "exceptions.h"
+#include "lagrange.h"
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
@@ -245,10 +246,19 @@ int Node::run()
 	  }break;
 
 	  case SHARE:{
-		//ShareMessage *sm = static_cast<ShareMessage*>(um);
-		Zr secret(sysparams.get_Pairing(), true);
-		//Initialize a HybribVSS with the above generated secret
-		hybridVSSInit(secret);
+		// Phase 0: share a random secret
+		if (ph == 0) {
+			cerr<<"Sharing new random secret" << endl;
+			Zr secret(sysparams.get_Pairing(), true);
+			//Initialize a HybridVSS with the above generated secret
+			hybridVSSInit(secret);
+		}
+		// Phase > 0: share existing share
+		else {
+			cerr<<"Sharing existing share" << endl;
+			//Initialize a HybridVSS with the known share
+			hybridVSSInit(result.share);
+		}
 	  }break;
 
 	 case CONFIRM_LEADER:{
@@ -291,6 +301,17 @@ int Node::run()
 		case MYSHARE:
 		  	result.share.dump(stderr,(char*)"Share is ",10); 
 		  break;
+		case PUBLIC_KEY: {
+			G1 quorumPublicKey;		
+			if (result.C.get_Type() == Feldman_Matrix){
+				CommitmentMatrix matrix = result.C.get_Matrix();
+				quorumPublicKey = matrix.getEntry(0,0);
+			}else{
+				CommitmentVector vector = result.C.get_Vector();
+				quorumPublicKey = vector.getShare(0);
+			}
+			quorumPublicKey.dump(stderr,(char*)"Public key is",10);
+		} break;
 		case ACTIVE_NODES:
 		  	cerr<<"Active Nodes are";
 			for(unsigned short i=0; i< activeNodes.size();++i)
@@ -1228,9 +1249,24 @@ void Node::completeDKG(){
 	}
 	if (!VSSsCompleted) {cerr<<"All VSS not yet complete\n";return;} //All required VSSs are not yet completed	 
 
-	for(it = DecidedValues.begin(); it != DecidedValues.end(); ++it){
-		result.C*= it->second.C;
-		result.share+= it->second.share;
+	// Phase = 0: add subshares to create share
+	if (ph == 0) {
+		for(it = DecidedValues.begin(); it != DecidedValues.end(); ++it){
+			result.C*= it->second.C;
+			result.share+= it->second.share;
+		}
+	}
+	// Phase > 0: Lagrange interpolate the subshares at index 0
+	else {
+		vector <Zr> indices; vector <Zr> shares;
+  		const Pairing& e = sysparams.get_Pairing();
+		for(it = DecidedValues.begin(); it != DecidedValues.end(); ++it){
+			indices.push_back(Zr(e,(signed long)it->first));
+			shares.push_back(it->second.share);
+		}
+		Zr alpha(e,(long)0);
+		vector<Zr> coeffs = lagrange_coeffs(indices, alpha);
+		result.share = lagrange_apply(coeffs, shares);
 	}
 	DKGCompleteMessage dkgCompleteMsg(ph, buddyset.get_leader(), DecidedVSSs, result.C, result.share);
 	//dkgCompleteMsg.dump(stderr);

@@ -134,7 +134,8 @@ typedef enum{
   LEADER,
   COMMITMENT,
   MYSHARE,
-  ACTIVE_NODES} StateInformationType;
+  ACTIVE_NODES,
+  PUBLIC_KEY} StateInformationType;
 
 class StateInformationMessage: public UserMessage {
 public:

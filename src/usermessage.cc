@@ -113,4 +113,6 @@ StateInformationMessage::StateInformationMessage(const string& str){
 	type = MYSHARE;
   else if(strType == "activeNodes")
 	type = ACTIVE_NODES;
+  else if(strType == "publicKey")
+    type = PUBLIC_KEY;
 }

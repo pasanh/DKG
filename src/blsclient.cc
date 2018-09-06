@@ -161,7 +161,7 @@ int BLSClient::run()
 						  cerr << "\n*** DIFFERENT!\n\n";
 						  //Send a Wrong Signatures Message						  
 					    }
-					    measure_now();
+					    measure_now("");
 					    //Code Testing: Send Wronfg Signature Message Anyways
 						WrongBLSSignaturesMessage wrongSignatures(buddyset,ph,msgHashG1,signatureShares);
 						vector<NodeID>::iterator iter;//For the active nodes list		

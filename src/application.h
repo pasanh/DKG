@@ -49,7 +49,8 @@ class Application {
 
   Application(SystemType systemtype, 
 				const char *pairingparamfile,
-				const char *sysparamfile, in_addr_t listen_addr, 
+				const char *sysparamfile, 
+				in_addr_t listen_addr, 
 				in_port_t listen_port, const char *certfile, 
 				const char *keyfile,const char *contactlistfile, 
 				Phase phase);
@@ -62,7 +63,7 @@ class Application {
 
     public:
 	void measure_init();
-	void measure_now();
+	void measure_now(const char* targetdir);
 };
 
 

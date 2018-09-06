@@ -211,7 +211,7 @@ void Application::measure_init()
     gettimeofday(&start_time, NULL);
 }
 
-void Application::measure_now()
+void Application::measure_now(const char* targetdir)
 {
 	struct timeval now;
 	gettimeofday(&now, NULL);
@@ -224,7 +224,8 @@ void Application::measure_now()
 
 	long userms = rus.ru_utime.tv_sec * 1000 + rus.ru_utime.tv_usec / 1000;
 	long sysms = rus.ru_stime.tv_sec * 1000 + rus.ru_stime.tv_usec / 1000;
-	string outputFileName = "dkg_";
+	string outputFileName = targetdir;
+	outputFileName += "/dkg_";
 	std::stringstream IStream; IStream << NodeID(buddyset.get_my_id());
 	outputFileName+=IStream.str();
 	outputFileName.append(".log");

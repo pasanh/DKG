@@ -32,10 +32,9 @@
 
 #define DEFAULT_PAIRING_PARAM "pairing.param"
 #define DEFAULT_SYSTEM_PARAM "system.param"
-// #define DEFAULT_MESSAGE_LOG "message.log"
 #define DEFAULT_MESSAGE_LOG NULL
-// #define DEFAULT_TIMEOUT_LOG "timeout.log"
 #define DEFAULT_TIMEOUT_LOG NULL
+#define DEFAULT_RESULTS_LOG_DIR "./"
 #define DEFAULT_PORT 9900
 #define DEFAULT_COMMITMENT_TYPE Feldman_Matrix
 #define DEFAULT_PHASE 0
@@ -63,15 +62,17 @@ static inline void setStreamFile(ofstream& ofs, const ostream& sfs, const char* 
 
 class Node : public Application {
 public:
-  Node(const char *pairingfile, const char *sysparamfile, const char* msglogfile, const char* timeoutlogfile, in_addr_t listen_addr, in_port_t listen_port,
+  Node(const char *pairingfile, const char *sysparamfile, const char* msglogfile, const char* timeoutlogfile, bool measure_timing, const char* resultslogdir, in_addr_t listen_addr, in_port_t listen_port,
   	   const char *certfile, const char *keyfile, const char *contactlistfile, Phase ph, CommitmentType commType = Feldman_Matrix, int nrln = 0):
-	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph)
+	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph),
+	resultsLogDir(resultslogdir)
 {
 	setStreamFile(msgLog, cout, msglogfile);
 	setStreamFile(timeoutLog, cout, timeoutlogfile);
 
 	selfID  = NodeID(buddyset.get_my_id());
 	non_responsive_leader_number = nrln;
+	measure = measure_timing;
 
 	nodeState = FUNCTIONAL; if (selfID == buddyset.get_leader()) nodeState = LEADER_UNCONFIRMED;
 	
@@ -82,7 +83,7 @@ public:
 	validLeaderChangeMsgCnt = 0;
 	leaderChangeTimerID=0;
 }
-  int run();
+  int run(bool share_and_wait, const char* existing_share);
   
 private:
 	NodeID selfID;
@@ -114,6 +115,8 @@ private:
 	
 	ofstream msgLog;
 	ofstream timeoutLog;
+	const char* resultsLogDir;
+	bool measure;
 	bool timer_set;
 	
 	map <NodeID, G1> clientPublicKeys;
@@ -123,13 +126,13 @@ private:
 	
 	void hybridVSSInit(const Zr& secret);// Share the secret using HybridVSS
 	void startAgreement(); // Start DKG as t+1 VSSs have completed
-	void completeDKG(); //(Try to) complete DKG of the DecidedVSSs set
+	void completeDKG(bool share_and_wait); //(Try to) complete DKG of the DecidedVSSs set
 	void sendLeaderChangeMessage(NodeID nextLeader);
 	void changePhase();
 	void resetState();
 };
 
-int Node::run()
+int Node::run(bool share_and_wait, const char* existing_share)
 {	
   /*cerr<<"Node "<<selfID<< " is ";
   switch(nodeState){
@@ -152,8 +155,6 @@ int Node::run()
 
   //first sleep for a small duration to get synchronization (will not be required once recovery mech. completes)
   gettimeofday (&now, NULL);
-  cout << "-Run node " << selfID << " starting at " << now.tv_sec << "." << setw(6) <<
-		  now.tv_usec << " with version 8.0" << endl;
   msgLog << "-Run node " << selfID << " starting at " << now.tv_sec << "." << setw(6) << now.tv_usec
 		  << " with version 8.0" << endl;
 
@@ -187,7 +188,9 @@ int Node::run()
 
   // Send LeaderChange to the leader, which it may use with the DKGSend
   // The leader now has wait for 2t+1 LeaderChange Message before starting the agreement
-  measure_init();
+  if(measure) {
+	measure_init();
+  }
   LeaderChangeMessage leadChg = LeaderChangeMessage(buddyset, ph, buddyset.get_leader());
   buddyset.send_message(buddyset.get_leader(),leadChg);
 
@@ -220,10 +223,21 @@ int Node::run()
 		gettimeofday (&now, NULL);
 		msgLog << "VSS_HELP " << vssHelp.get_ID() << " for " << "* SENT from " << selfID << " to " << *iter << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 	}
-   
+
+	if(share_and_wait) {
+		if(existing_share) {
+			Zr secret(sysparams.get_Pairing(), (unsigned char*)existing_share, strlen(existing_share), 10);
+			hybridVSSInit(secret);
+		} else {
+			Zr secret(sysparams.get_Pairing(), true);
+			hybridVSSInit(secret);
+		}
+	}
+  
+  bool running = true;
   int first_time = 1;
   //sleep (60);
-  while(1) {
+  while(running) {
   	NodeID buddyID = 0;//0 for timer and user messages
 	if (first_time == 1 && selfID == buddyset.get_leader()) {
 		gettimeofday (&now, NULL);
@@ -238,6 +252,9 @@ int Node::run()
   case USER:{
 	  UserMessage *um = static_cast<UserMessage*>(m);
 	  switch(um->get_type()) {
+	  case EXIT:{
+		  running = false;
+	  }break;
 	  case USER_MSG_PING:{
 		PingUserMessage *pum = static_cast<PingUserMessage*>(um);
 		cerr << "Pinging " << pum->get_who() << "\n";
@@ -376,7 +393,6 @@ int Node::run()
 				//condition below make sure that if the DKG is complete, then VSS only for NodeID the decided set continue
 				((nodeState != AGREEMENT_COMPLETED)||(find(DecidedVSSs.begin(), DecidedVSSs.end(),buddyID) != DecidedVSSs.end()))) {
 				//Send message from the same phase
-				cerr << "PROCESS SEND" << endl;
 				if(vssSend->C.verifyPoly(sysparams,selfID,vssSend->a)){							
 					//multimap<NodeID, Commitment>::iterator> ret;
 					//bool commitmentAlreadyExists = false;
@@ -621,7 +637,7 @@ int Node::run()
 								startAgreement();
 							}
 						}
-					} else completeDKG();					
+					} else completeDKG(share_and_wait);					
 				}
 				}else {
 				 msgLog<<"Invalid VSSReady Message received at "<<selfID<<" from "<<buddyID<<" for "<<vssReady->dealer<<endl;
@@ -869,7 +885,7 @@ int Node::run()
 					DecidedVSSs = dkgReady->DecidedVSSs;
 					//sort(DecidedVSSs.begin(),DecidedVSSs.end());
 					//cout << "COMPLETE!!! for node " << selfID << " at " << now.tv_sec << "." << setw(6) << now.tv_usec << endl;
-					completeDKG(); 
+					completeDKG(share_and_wait); 
 				}
 			}else if (!dkgReady->msgValid) {
 				gettimeofday(&now, NULL);
@@ -1221,7 +1237,7 @@ void Node::startAgreement(){
 }
 
 
-void Node::completeDKG(){
+void Node::completeDKG(bool share_and_wait){
 	timeval now;
 	//Subset of C_final for NodeIDs in DecidedVSSs
 	map<NodeID, CommitmentAndShare> DecidedValues;
@@ -1273,16 +1289,20 @@ void Node::completeDKG(){
 	gettimeofday (&now, NULL);
 	msgLog<<"DKG_COMPLETE * for "<<buddyset.get_leader() << " RS from " << selfID << " to * at "
 			<< now.tv_sec << "." << setw(6) << now.tv_usec << " :)" <<endl;
-	cout<<"DKG_COMPLETE * for " <<buddyset.get_leader()<< " RS from " << selfID << " to * at "
-				<< now.tv_sec << "." << setw(6) << now.tv_usec << " :)" <<endl;
 	//fstream logFStream("dkg.log",ios::out); logFStream <<selfID<<" "<<buddyset.get_leader()<<" ";logFStream.close();
 	// Get performance measurements
-	measure_now();
+	if(measure) {
+		measure_now(resultsLogDir);
+	}
 
-	//DecidedVSSs broadcast and decided VSSs are now completed
-	// Increment phase and reset node state
-	ph++;
-	resetState();
+	if(share_and_wait) {
+		result.share.dump(stderr,(char*)"Share is ", 10);
+	} else {
+		//DecidedVSSs broadcast and decided VSSs are now completed
+		// Increment phase and reset node state
+		ph++;
+		resetState();
+	}
 }
 
 void Node::resetState()
@@ -1335,21 +1355,24 @@ void Node::changePhase(){
 
 void printUsage()
 {
-	cerr << "Usage: node -p portnum -a pairing_param -s system_param -m messagelogfile -t timeoutlogfile -h phase -c commitmenttype -l non_responsive_leader_number certfile keyfile contactlist" << endl;;
+	cerr << "Usage: node -p portnum -a pairing_param -s system_param -m messagelogfile -t timeoutlogfile -h phase -c commitmenttype -l non_responsive_leader_number -r share certfile keyfile contactlist" << endl;;
 	cerr << "    -p portnum - Node listen port (Optional - default " << DEFAULT_PORT << ")" << endl;
 	cerr << "    -a pairing_param - Pairing Parameter File (Optional - default \"" << DEFAULT_PAIRING_PARAM << "\")" << endl;
 	cerr << "    -s system_param - System Parameter File (Optional - default \"" << DEFAULT_SYSTEM_PARAM << "\")" << endl;
-	cerr << "    -m messagelogfile - Message Log File (Optional - default \"" << DEFAULT_MESSAGE_LOG << "\")" << endl;
-	cerr << "    -t timeoutlogfile - Timeout Log File (Optional - default \"" << DEFAULT_TIMEOUT_LOG << "\")" << endl;
+	cerr << "    -m messagelogfile - Message Log File (Optional - default stdout)" << endl;
+	cerr << "    -i timeoutlogfile - Timeout Log File (Optional - default stdout)" << endl;
+	cerr << "    -t - Measure timings - (Optional - default off)" << endl;
+	cerr << "    -b resultslogdir - Directory to store timeing results (Optional - default \"" << DEFAULT_RESULTS_LOG_DIR << "\")" << endl;
+	cerr << "        results will be stored in the file dkg_[NODEID] where [NODEID] is the node's identifier" << endl;
 	cerr << "    -h phase - System Phase (Optional - default " << DEFAULT_PHASE << ")" << endl;
-	cerr << "        0 - Initial phase" << endl;
-	cerr << "        > 0 - Node is under recovery" << endl;
 	cerr << "    -c commitmenttype - Commitment Type (Optional - default " << DEFAULT_COMMITMENT_TYPE << ")" << endl;
 	cerr << "        0 - Feldman Matrix" << endl;
 	cerr << "        1 - Feldman Vector" << endl;
 	cerr << "    -l non_responsive_leader_number - Value of non responsive leader (Optional - default " << DEFAULT_NON_RESPONSIVE_LEADER << ")" << endl;
 	cerr << "        0 - Leader is active" << endl;
 	cerr << "        > 0 - Non responsive leader ID" << endl;
+	cerr << "    -r[share] - Run DKG to compute share, print the share, and exit" << endl; 
+	cerr << "        share is optional - if specified DKG will renew based the existing share" << endl;
 	cerr << "    certfile - Certificate File (Required)" << endl;
 	cerr << "    keyfile - Key File (Required)" << endl;
 	cerr << "    contactlist - Node List File (Required)" << endl;
@@ -1373,12 +1396,16 @@ int main(int argc, char **argv)
   const char *system_param = DEFAULT_SYSTEM_PARAM;
   const char *messagelogfile = DEFAULT_MESSAGE_LOG;
   const char *timeoutlogfile = DEFAULT_TIMEOUT_LOG;
+  const char *resultslogdir = DEFAULT_RESULTS_LOG_DIR;
   CommitmentType type = DEFAULT_COMMITMENT_TYPE;
   Phase ph = DEFAULT_PHASE;
   int non_responsive_leader_number = DEFAULT_NON_RESPONSIVE_LEADER;
+  bool share_and_wait = false;
+  char* existing_share = NULL;
+  bool measure_timing = false;
 
   int c;
-  while ((c = getopt(argc, argv, "p:a:s:m:t:h:c:l:")) != -1) {
+  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:l:r::b:t")) != -1) {
     switch(c) {
 	  case 'p':
 		portnum = atoi(optarg);
@@ -1392,8 +1419,14 @@ int main(int argc, char **argv)
 	  case 'm':
 	    messagelogfile = optarg;
 		break;
-	  case 't':
+	  case 'i':
 	    timeoutlogfile = optarg;
+		break;
+	  case 't':
+	    measure_timing = true;
+		break;
+	  case 'b':
+	    resultslogdir = optarg;
 		break;
 	  case 'h':
 	    ph = atoi(optarg);
@@ -1403,6 +1436,11 @@ int main(int argc, char **argv)
 		break;
 	  case 'l':
 	    non_responsive_leader_number = atoi(optarg);
+		break;
+	  case 'r':
+	    share_and_wait = true;
+		if(optarg)
+		  existing_share = optarg;
 		break;
 	  case '?':
 	    if (isprint (optopt))
@@ -1431,7 +1469,12 @@ int main(int argc, char **argv)
   accessOrExit(contactlist, R_OK);
 
   gnutls_global_init();
-  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, INADDR_ANY, portnum, 
+  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, measure_timing, resultslogdir, INADDR_ANY, portnum, 
 			certfile, keyfile, contactlist, ph, type, non_responsive_leader_number);
-  return node.run();
+  
+  if(share_and_wait) {
+	return node.run(share_and_wait, existing_share);
+  }
+
+  return node.run(false, NULL);
 }

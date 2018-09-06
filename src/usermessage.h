@@ -30,7 +30,7 @@ typedef enum {IN, OUT} IOType;
 typedef enum {
     USER_MSG_NONE,
 	SHARE, CONFIRM_LEADER, SHARED, RECOVER, RECONSTRUCT, DKG_COMPLETE, 
-	STATE_INFORMATION, SIGN, USER_MSG_PING
+	STATE_INFORMATION, SIGN, USER_MSG_PING, EXIT
 } UserMessageType;
 
 //class for network messages in the system
@@ -51,6 +51,10 @@ private:
   int who;
 };
 
+class ExitMessage : public UserMessage {
+public:
+  ExitMessage() { msgtype = EXIT; }
+};
 
 class ShareMessage : public UserMessage {
 public:

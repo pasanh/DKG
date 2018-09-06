@@ -30,7 +30,7 @@ UserMessage *UserMessage::read_message()
     getline(cin, command);
 
     if (cin.eof()) {
-	return NULL;
+		return new ExitMessage();
     }
 
     //cerr << "Got user command ``" << command << "''\n";
@@ -63,6 +63,9 @@ UserMessage *UserMessage::read_message()
 	  string paramStr = command.substr(5);
 	  return new BLSSignatureRequestUserMessage(paramStr);
     }
+	if (!strncmp(cmdstr, "exit", 4)) {
+	  return new ExitMessage();
+	}
     return new UserMessage();
 }
 

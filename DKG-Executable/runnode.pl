@@ -4,6 +4,15 @@ use strict;
 use File::Basename;
 use File::Path qw(make_path remove_tree);
 use Cwd 'abs_path';
+use Getopt::Long;
+
+my ($log, $share, $benchmark);
+
+GetOptions(
+    'r:s'   => \$share,
+	'l'     => \$log,
+	'b'     => \$benchmark,
+);
 
 my $username = $ENV{LOGNAME} || $ENV{USER};
 
@@ -25,15 +34,30 @@ print_usage() unless($node);
 my $certfile = "$exe_dir/certs/$node.pem";
 my $keyfile = "$exe_dir/certs/$node-key.pem";
 
-remove_tree($log_dir);
-make_path($log_dir);
+if($log || $benchmark) {
+	remove_tree($log_dir);
+	make_path($log_dir);
+}
 
-#my $cmd = "$node_cmd -a $pairing_param -s $system_param -m $message_log -t $timeout_log -h 0 -c 0 -l 0 $certfile $keyfile $contactlist";
-my $cmd = "$node_cmd -a $pairing_param -s $system_param -h 0 -c 0 -l 0 $certfile $keyfile $contactlist";
+my $log_param = '';
+if($log) {
+	$log_param = "-m $message_log -i $timeout_log";
+}
+
+my $benchmark_param = '';
+if($benchmark) {
+	$benchmark_param = "-t -b $log_dir";
+}
+
+my $share_param = '';
+$share_param .= "-r" if(defined($share));
+$share_param .= "$share" if(length($share) > 0);
+
+my $cmd = "$node_cmd -a $pairing_param -s $system_param $log_param $benchmark_param $share_param $certfile $keyfile $contactlist";
 print "$cmd\n";
 exec $cmd;
 
 sub print_usage {
 	my $file_name = basename($0);
-	die "Run DKG Node:\nUsage $file_name node_id\n";
+	die "Run DKG Node:\nUsage $file_name [-l] [-r[share]] node_id\n";
 }

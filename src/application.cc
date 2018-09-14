@@ -41,7 +41,7 @@ Application(SystemType systemtype,
 			const char *pairingparamfile,
 			const char *sysparamfile, in_addr_t listen_addr, 
 			in_port_t listen_port, const char *certfile,
-			const char *keyfile, const char *contactlistfile, 
+			const char *keyfile, const char *contactlistfile, const char *contactlistdir, 
 			Phase ph): systemtype(systemtype),sysparams(pairingparamfile, sysparamfile),
 			buddyset(sysparams, certfile, keyfile), ph(ph), timeout_times(0) {
   // Ignore SIGPIPE
@@ -99,7 +99,7 @@ Application(SystemType systemtype,
   // On what fd will user commands show up?
   userfd = 0;
   
-  buddyset.init_contact_list(contactlistfile);
+  buddyset.init_contact_list(contactlistfile,contactlistdir);
   
   //Intialzie the active user's list
   map<BuddyID, ContactEntry> buddy_list;

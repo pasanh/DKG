@@ -32,9 +32,11 @@
 
 #define DEFAULT_PAIRING_PARAM "pairing.param"
 #define DEFAULT_SYSTEM_PARAM "system.param"
+#define DEFAULT_TIMEOUTVALUE_FILE "timeout.value"
 #define DEFAULT_MESSAGE_LOG NULL
 #define DEFAULT_TIMEOUT_LOG NULL
 #define DEFAULT_RESULTS_LOG_DIR "./"
+#define DEFAULT_CONTACTLIST_DIR "./"
 #define DEFAULT_PORT 9900
 #define DEFAULT_COMMITMENT_TYPE Feldman_Matrix
 #define DEFAULT_PHASE 0
@@ -62,10 +64,16 @@ static inline void setStreamFile(ofstream& ofs, const ostream& sfs, const char* 
 
 class Node : public Application {
 public:
-  Node(const char *pairingfile, const char *sysparamfile, const char* msglogfile, const char* timeoutlogfile, bool measure_timing, const char* resultslogdir, in_addr_t listen_addr, in_port_t listen_port,
-  	   const char *certfile, const char *keyfile, const char *contactlistfile, Phase ph, CommitmentType commType = Feldman_Matrix, int nrln = 0):
-	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, ph),
-	resultsLogDir(resultslogdir)
+  Node(
+	const char *pairingfile, const char *sysparamfile,
+	const char* msglogfile, const char* timeoutlogfile,
+	bool measure_timing, const char* resultslogdir, const char* timeoutvaluefile,
+	in_addr_t listen_addr, in_port_t listen_port, const char *certfile, const char *keyfile, const char *contactlistfile, const char* contactlistdir = "",
+	Phase ph = 0, CommitmentType commType = Feldman_Matrix, int nrln = 0
+  ) :
+	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, contactlistdir, ph),
+	resultsLogDir(resultslogdir),
+	timeoutvalueFile(timeoutvaluefile)
 {
 	setStreamFile(msgLog, cout, msglogfile);
 	setStreamFile(timeoutLog, cout, timeoutlogfile);
@@ -116,6 +124,7 @@ private:
 	ofstream msgLog;
 	ofstream timeoutLog;
 	const char* resultsLogDir;
+	const char* timeoutvalueFile;
 	bool measure;
 	bool timer_set;
 	
@@ -162,29 +171,32 @@ int Node::run(bool share_and_wait, const char* existing_share)
   gettimeofday (&now, NULL);
   msgLog<< "-Function node " << selfID << " starting at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 
-  fstream timeoutValueStream ("timeout.value", ios::in); 
-  string line_indicator;
-  int t_n, t_t, t_f;
   incremental_change = 0;
-  while (timeoutValueStream >> line_indicator) {
-	timeoutValueStream >> t_n;
-	timeoutValueStream >> t_t;
-	timeoutValueStream >> t_f;
-	if (t_n == sysparams.get_n() && t_t == sysparams.get_t()
-		&& t_f == sysparams.get_f()) {
-		timeoutValueStream >> incremental_change;
-		timeoutValueStream.close();
-		break;
-	} else {
-		int temp;
-		timeoutValueStream >> temp;
-	}
-  }
+  fstream timeoutValueStream(timeoutvalueFile, ios::in); 
+  if(timeoutValueStream.is_open()) {
+   	int t_n, t_t, t_f;
+  	string line_indicator;
+  	while (timeoutValueStream >> line_indicator) {
+		timeoutValueStream >> t_n;
+		timeoutValueStream >> t_t;
+		timeoutValueStream >> t_f;
+		if (t_n == sysparams.get_n() && t_t == sysparams.get_t()
+			&& t_f == sysparams.get_f()) {
+			timeoutValueStream >> incremental_change;
+			timeoutValueStream.close();
+			break;
+		} else {
+			int temp;
+			timeoutValueStream >> temp;
+		}
+  	}
 
-  timeoutLog << "==============================" << endl;
-  timeoutLog << "Para: n = " << t_n << " t = " << t_t << " f = " << t_f << endl;
-  timeoutLog << "Incremental Change = " << incremental_change << endl;
-  timeoutLog << "==============================" << endl;
+	timeoutLog << "==============================" << endl;
+  	timeoutLog << "Para: n = " << t_n << " t = " << t_t << " f = " << t_f << endl;
+  	timeoutLog << "Incremental Change = " << incremental_change << endl;
+  	timeoutLog << "==============================" << endl;
+	timeoutValueStream.close();
+  }
 
   // Send LeaderChange to the leader, which it may use with the DKGSend
   // The leader now has wait for 2t+1 LeaderChange Message before starting the agreement
@@ -1364,7 +1376,9 @@ void printUsage()
 	cerr << "    -t - Measure timings - (Optional - default off)" << endl;
 	cerr << "    -b resultslogdir - Directory to store timeing results (Optional - default \"" << DEFAULT_RESULTS_LOG_DIR << "\")" << endl;
 	cerr << "        results will be stored in the file dkg_[NODEID] where [NODEID] is the node's identifier" << endl;
+	cerr << "    -v timeoutvaluefile - File containing timeout value parameters (Optional - default \"" << DEFAULT_TIMEOUTVALUE_FILE << "\")"<< endl;
 	cerr << "    -h phase - System Phase (Optional - default " << DEFAULT_PHASE << ")" << endl;
+	cerr << "    -d contactlistdir - Directory path prefix for all cert files (Optional - default \"" << DEFAULT_CONTACTLIST_DIR << "\")" << endl;
 	cerr << "    -c commitmenttype - Commitment Type (Optional - default " << DEFAULT_COMMITMENT_TYPE << ")" << endl;
 	cerr << "        0 - Feldman Matrix" << endl;
 	cerr << "        1 - Feldman Vector" << endl;
@@ -1396,7 +1410,9 @@ int main(int argc, char **argv)
   const char *system_param = DEFAULT_SYSTEM_PARAM;
   const char *messagelogfile = DEFAULT_MESSAGE_LOG;
   const char *timeoutlogfile = DEFAULT_TIMEOUT_LOG;
+  const char *timeoutvaluefile = DEFAULT_TIMEOUTVALUE_FILE;
   const char *resultslogdir = DEFAULT_RESULTS_LOG_DIR;
+  const char *contactlistdir = DEFAULT_CONTACTLIST_DIR;
   CommitmentType type = DEFAULT_COMMITMENT_TYPE;
   Phase ph = DEFAULT_PHASE;
   int non_responsive_leader_number = DEFAULT_NON_RESPONSIVE_LEADER;
@@ -1405,7 +1421,7 @@ int main(int argc, char **argv)
   bool measure_timing = false;
 
   int c;
-  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:l:r::b:t")) != -1) {
+  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:d:l:r::b:t")) != -1) {
     switch(c) {
 	  case 'p':
 		portnum = atoi(optarg);
@@ -1428,11 +1444,17 @@ int main(int argc, char **argv)
 	  case 'b':
 	    resultslogdir = optarg;
 		break;
+	  case 'v':
+	    timeoutvaluefile = optarg;
+		break;
 	  case 'h':
 	    ph = atoi(optarg);
 		break;
 	  case 'c':
 	    type = (CommitmentType)atoi(optarg);
+		break;
+	  case 'd':
+	    contactlistdir = optarg;
 		break;
 	  case 'l':
 	    non_responsive_leader_number = atoi(optarg);
@@ -1469,8 +1491,8 @@ int main(int argc, char **argv)
   accessOrExit(contactlist, R_OK);
 
   gnutls_global_init();
-  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, measure_timing, resultslogdir, INADDR_ANY, portnum, 
-			certfile, keyfile, contactlist, ph, type, non_responsive_leader_number);
+  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, measure_timing, resultslogdir, timeoutvaluefile, INADDR_ANY, portnum, 
+			certfile, keyfile, contactlist, contactlistdir, ph, type, non_responsive_leader_number);
   
   if(share_and_wait) {
 	return node.run(share_and_wait, existing_share);

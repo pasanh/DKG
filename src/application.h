@@ -52,7 +52,7 @@ class Application {
 				const char *sysparamfile, 
 				in_addr_t listen_addr, 
 				in_port_t listen_port, const char *certfile, 
-				const char *keyfile,const char *contactlistfile, 
+				const char *keyfile,const char *contactlistfile,const char *contactlistdir, 
 				Phase phase);
 	unsigned long get_time_diff(int t, unsigned long incre);
     private:

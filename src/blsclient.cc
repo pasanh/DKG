@@ -27,7 +27,7 @@ class BLSClient : public Application {
 public:
     BLSClient(const char *pairingfile, const char *sysparamfile, const char *certfile, 
 	    const char *keyfile, const char *contactlistfile, Phase ph):
-	Application(BLS_CLIENT, pairingfile, sysparamfile, 0, 0, certfile, keyfile, contactlistfile, ph),
+	Application(BLS_CLIENT, pairingfile, sysparamfile, 0, 0, certfile, keyfile, contactlistfile, "", ph),
 	msgLog("message.log",ios::out)
     {
     //Generate a random public/pivate key pair

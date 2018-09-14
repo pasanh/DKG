@@ -53,7 +53,7 @@ my $share_param = '';
 $share_param .= "-r" if(defined($share));
 $share_param .= "$share" if(length($share) > 0);
 
-my $cmd = "$node_cmd -a $pairing_param -s $system_param $log_param $benchmark_param $share_param $certfile $keyfile $contactlist";
+my $cmd = "$node_cmd -a $pairing_param -s $system_param $log_param $benchmark_param $share_param -d $exe_dir $certfile $keyfile $contactlist";
 print "$cmd\n";
 exec $cmd;
 

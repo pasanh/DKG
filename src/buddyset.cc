@@ -117,9 +117,15 @@ BuddySet::~BuddySet()
     gcry_sexp_release(my_dsa_privkey);
 }
 
-void BuddySet::init_contact_list(const char *filename)
+void BuddySet::init_contact_list(const char *filename, const char* certdir)
 {
     if (filename == NULL) return;
+		
+	string certfilepath;
+	if (strlen(certdir) > 0) {
+		certfilepath += certdir;
+		certfilepath += "/";
+	}
 
     ifstream file;
     file.open(filename);
@@ -146,10 +152,10 @@ void BuddySet::init_contact_list(const char *filename)
 		contactlist[id] = ce;
 		
 		//Add Buddy and Certificate
-		string cert;			
+		string cert;
 		// Read the file
 		ifstream certfile;
-		certfile.open(certfilename);
+		certfile.open((certfilepath + certfilename).c_str());
 		if (certfile.good()) {
 			getline(certfile, cert, '\0');
 			certfile.close();   

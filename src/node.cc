@@ -308,7 +308,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 		case F:
 		  	cout<<"f is "<<sysparams.get_f(); break;
 		case U:
-		  	(sysparams.get_U()).dump(stderr,(char*)"U is ",10);break;
+		  	(sysparams.get_U()).dump(stdout,(char*)"U is ",10);break;
 		case STATE:
 		  	cout<<"Node is ";
 			  switch(nodeState){
@@ -327,9 +327,9 @@ int Node::run(bool share_and_wait, const char* existing_share)
 		  	cout<<"Current leader is "<<buddyset.get_leader();break;
 		case COMMITMENT:
 			cout<< "Commitment is"<<endl;
-			result.C.dump(stderr);break;
+			result.C.dump(stdout);break;
 		case MYSHARE:
-		  	result.share.dump(stderr,(char*)"Share is ",10); 
+		  	result.share.dump(stdout,(char*)"Share is ",10); 
 		  break;
 		case PUBLIC_KEY: {
 			G1 quorumPublicKey;		
@@ -340,7 +340,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 				CommitmentVector vector = result.C.get_Vector();
 				quorumPublicKey = vector.getShare(0);
 			}
-			quorumPublicKey.dump(stderr,(char*)"Public key is",10);
+			quorumPublicKey.dump(stdout,(char*)"Public key is",10);
 		} break;
 		case ACTIVE_NODES:
 		  	cout<<"Active Nodes are";
@@ -1312,7 +1312,7 @@ void Node::completeDKG(bool share_and_wait){
 	}
 
 	if(share_and_wait) {
-		result.share.dump(stderr,(char*)"Share is ", 10);
+		result.share.dump(stdout,(char*)"Share is ", 10);
 	} else {
 		//DecidedVSSs broadcast and decided VSSs are now completed
 		// Increment phase and reset node state

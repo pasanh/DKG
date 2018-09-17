@@ -269,7 +269,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 	  }break;
 	  case USER_MSG_PING:{
 		PingUserMessage *pum = static_cast<PingUserMessage*>(um);
-		cerr << "Pinging " << pum->get_who() << "\n";
+		cout << "Pinging " << pum->get_who() << "\n";
 		PingNetworkMessage pnm(buddyset, time(0));
 		buddyset.send_message(pum->get_who(), pnm);
 	  }break;
@@ -277,14 +277,14 @@ int Node::run(bool share_and_wait, const char* existing_share)
 	  case SHARE:{
 		// Phase 0: share a random secret
 		if (ph == 0) {
-			cerr<<"Sharing new random secret" << endl;
+			cout<<"Sharing new random secret" << endl;
 			Zr secret(sysparams.get_Pairing(), true);
 			//Initialize a HybridVSS with the above generated secret
 			hybridVSSInit(secret);
 		}
 		// Phase > 0: share existing share
 		else {
-			cerr<<"Sharing existing share" << endl;
+			cout<<"Sharing existing share" << endl;
 			//Initialize a HybridVSS with the known share
 			hybridVSSInit(result.share);
 		}
@@ -297,35 +297,36 @@ int Node::run(bool share_and_wait, const char* existing_share)
 
 	  case STATE_INFORMATION:{
 		StateInformationMessage *sim =static_cast<StateInformationMessage*>(um);
+		bool formatError = false;
 		switch(sim->type){
 		case ID:
-		  	cerr<<"ID for node is "<<selfID; break;
+		  	cout<<"ID for node is "<<selfID; break;
 		case N:
-		  	cerr<<"n is "<<sysparams.get_n(); break;
+		  	cout<<"n is "<<sysparams.get_n(); break;
 		case T:
-		  	cerr<<"t is "<<sysparams.get_t(); break;
+		  	cout<<"t is "<<sysparams.get_t(); break;
 		case F:
-		  	cerr<<"f is "<<sysparams.get_f(); break;
+		  	cout<<"f is "<<sysparams.get_f(); break;
 		case U:
 		  	(sysparams.get_U()).dump(stderr,(char*)"U is ",10);break;
 		case STATE:
-		  	cerr<<"Node is ";
+		  	cout<<"Node is ";
 			  switch(nodeState){
-			  	case LEADER_UNCONFIRMED: cerr<<"not yet confirmed.";break;
-			  	case UNDER_RECOVERY: cerr<<"under recovery.";break;
-			  	case FUNCTIONAL: cerr<<"functional.";break;
-				case AGREEMENT_STARTED: cerr<<"in state Agreement_Started.";break;
-				case LEADER_CHANGE_STARTED: cerr<<"in state LeaderChange_Started.";break;
-				case AGREEMENT_COMPLETED: cerr<<"in state Agreement_Completed.";break;
-				case DKG_COMPLETED: cerr<<"in state DKG_Completed.";break;		  
+			  	case LEADER_UNCONFIRMED: cout<<"not yet confirmed.";break;
+			  	case UNDER_RECOVERY: cout<<"under recovery.";break;
+			  	case FUNCTIONAL: cout<<"functional.";break;
+				case AGREEMENT_STARTED: cout<<"in state Agreement_Started.";break;
+				case LEADER_CHANGE_STARTED: cout<<"in state LeaderChange_Started.";break;
+				case AGREEMENT_COMPLETED: cout<<"in state Agreement_Completed.";break;
+				case DKG_COMPLETED: cout<<"in state DKG_Completed.";break;		  
 			  }		  	
 		  	break;
 		case PHASE:
-		  	cerr<<"Phase is "<<ph;break;		
+		  	cout<<"Phase is "<<ph;break;		
 		case LEADER:
-		  	cerr<<"Current leader is "<<buddyset.get_leader();break;
+		  	cout<<"Current leader is "<<buddyset.get_leader();break;
 		case COMMITMENT:
-			cerr<< "Commitment is"<<endl;
+			cout<< "Commitment is"<<endl;
 			result.C.dump(stderr);break;
 		case MYSHARE:
 		  	result.share.dump(stderr,(char*)"Share is ",10); 
@@ -342,13 +343,16 @@ int Node::run(bool share_and_wait, const char* existing_share)
 			quorumPublicKey.dump(stderr,(char*)"Public key is",10);
 		} break;
 		case ACTIVE_NODES:
-		  	cerr<<"Active Nodes are";
+		  	cout<<"Active Nodes are";
 			for(unsigned short i=0; i< activeNodes.size();++i)
-				cerr<<" "<<activeNodes[i];break;
+				cout<<" "<<activeNodes[i];break;
 		case NONE: default:
-		  	cerr<<"State Information Request: Not Well-Formatted";break;
+			formatError = true;
+		  	cerr<<"State Information Request: Not Well-Formatted"<<endl;break;
 		}
-		cerr<<endl;
+		if(!formatError) {
+			cout<<endl;
+		}
 	  }
 		break;
 	  case RECOVER:{
@@ -383,9 +387,9 @@ int Node::run(bool share_and_wait, const char* existing_share)
 			size_t bodylen = pnm->DSA.length();
 			bool valid = read_sig(buddy,bodyptr, bodylen, (const unsigned char *)pnm->strMsg.data(),(const unsigned char *)(pnm->strMsg).data()+ (pnm->strMsg).length());
 			if (valid) {
-			  cerr << "Ping from id " <<buddyID <<", timestamp = " << pnm->t << "\n";
+			  cout << "Ping from id " <<buddyID <<", timestamp = " << pnm->t << endl;
 			} else {
-			  cerr<<"Received Invalid ping from id " <<buddyID <<", timestamp = " << pnm->t << "\n";
+			  cerr<<"Received Invalid ping from id " <<buddyID <<", timestamp = " << pnm->t << endl;
 			}
 		}
 		break;
@@ -397,7 +401,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 			//}
 			if(ph > vssSend->ph) {
 			//TODO: Actual system need not to display the following messages.
-			  //cerr<<"Phase for VSSSend "<<vssSend->ph<<" is older than the current phase "<<ph<<endl;
+			  cerr<<"Phase for VSSSend "<<vssSend->ph<<" is older than the current phase "<<ph<<endl;
 			} else if(ph < vssSend->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -712,7 +716,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 			//msgLog<<"DKGSend Message received from "<<buddyID<<endl;
 			if(ph > dkgSend->ph) {
 				//TODO: Actual system need not to display the following messages.
-				//cerr<<"Phase for DKGSend "<<dkgSend->ph<<" is older  than the current phase "<<ph<<endl;				  
+				cerr<<"Phase for DKGSend "<<dkgSend->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < dkgSend->ph){
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -1029,11 +1033,11 @@ int Node::run(bool share_and_wait, const char* existing_share)
 		}
 		break;
 		case RECONSTRUCT_SHARE:{
-			cerr << "RECONSTRUCT_SHARE message from" << buddyID << " to " << selfID << endl;
+			cout << "RECONSTRUCT_SHARE message from" << buddyID << " to " << selfID << endl;
 		}
 		break;
 		case PUBLIC_KEY_EXCHANGE:{
-				cerr << "PUBLIC_KEY_EXCHANGE message from" << buddyID
+				cout << "PUBLIC_KEY_EXCHANGE message from" << buddyID
 							<< " to " << selfID << endl;
 				PublicKeyExchangeMessage *pubkeymsg = static_cast<PublicKeyExchangeMessage*>(nm);
 				clientPublicKeys.erase(buddyID);//delete old key, if any
@@ -1053,7 +1057,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 		break;
 		case BLS_SIGNATURE_REQUEST:
 		{ 
-			cerr << "BLS_SIGNATURE_REQUEST message from" <<
+			cout << "BLS_SIGNATURE_REQUEST message from" <<
 					buddyID << " to " << selfID << endl;
 		 	BLSSignatureRequestMessage *signatureRequest = static_cast<BLSSignatureRequestMessage*>(nm);
 			//cerr << "BLS_SIGNATURE_REQUEST received RECEIVED from " << buddyID<<endl;
@@ -1077,7 +1081,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 		break;
 		case WRONG_BLS_SIGNATURES:
 		{
-			cerr << "WRONG_BLS_SIGNATURES message from" << buddyID << endl;
+			cout << "WRONG_BLS_SIGNATURES message from" << buddyID << endl;
 			WrongBLSSignaturesMessage *wrongSignatures = static_cast<WrongBLSSignaturesMessage*>(nm);
 			//cerr << "WRONG_BLS_SIGNATURES received RECEIVED from " << buddyID<<endl;
 			if(ph > wrongSignatures->ph) {
@@ -1421,7 +1425,7 @@ int main(int argc, char **argv)
   bool measure_timing = false;
 
   int c;
-  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:d:l:r::b:t")) != -1) {
+  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:d:l:r::b:v:t")) != -1) {
     switch(c) {
 	  case 'p':
 		portnum = atoi(optarg);

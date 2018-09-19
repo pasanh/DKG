@@ -43,6 +43,7 @@ class BuddySet {
 	~BuddySet();
 
 	const SystemParam &get_param() const { return sysparams; }
+	void insert_buddy(BuddyID id, in_addr_t addr, in_port_t port, const char* cert_dir, const string& cert_file);
 	void init_contact_list(const char *filename, const char* cert_dir = "");
 	int set_fds(fd_set *fdsp);
 	Buddy *find_set_fd(fd_set *fdsp);

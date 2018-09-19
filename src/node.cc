@@ -69,11 +69,12 @@ public:
 	const char* msglogfile, const char* timeoutlogfile,
 	bool measure_timing, const char* resultslogdir, const char* timeoutvaluefile,
 	in_addr_t listen_addr, in_port_t listen_port, const char *certfile, const char *keyfile, const char *contactlistfile, const char* contactlistdir = "",
-	Phase ph = 0, CommitmentType commType = Feldman_Matrix, int nrln = 0
+	Phase ph = 0, CommitmentType commType = Feldman_Matrix, int nrln = 0, const char* share = NULL
   ) :
 	Application(NODE, pairingfile, sysparamfile, listen_addr, listen_port, certfile, keyfile, contactlistfile, contactlistdir, ph),
 	resultsLogDir(resultslogdir),
-	timeoutvalueFile(timeoutvaluefile)
+	timeoutvalueFile(timeoutvaluefile),
+	certsDir(contactlistdir)
 {
 	setStreamFile(msgLog, cout, msglogfile);
 	setStreamFile(timeoutLog, cout, timeoutlogfile);
@@ -86,12 +87,16 @@ public:
 	
 	this->commType = commType;
 	result.C = Commitment(sysparams, activeNodes, commType);
-	result.share = Zr(sysparams.get_Pairing(),(long int) 0);
+	if(share) {
+		result.share = Zr(sysparams.get_Pairing(), (unsigned char*)share, strlen(share), 10);
+	} else {
+		result.share = Zr(sysparams.get_Pairing(),(long int) 0);
+	}
 	nextSmallestLeader = buddyset.get_previous_leader();
 	validLeaderChangeMsgCnt = 0;
 	leaderChangeTimerID=0;
 }
-  int run(bool share_and_wait, const char* existing_share);
+  int run(bool share_and_wait);
   
 private:
 	NodeID selfID;
@@ -125,6 +130,7 @@ private:
 	ofstream timeoutLog;
 	const char* resultsLogDir;
 	const char* timeoutvalueFile;
+	const char* certsDir;
 	bool measure;
 	bool timer_set;
 	
@@ -133,6 +139,7 @@ private:
 	int non_responsive_leader_number;
 	int incremental_change;
 	
+	void doShare();
 	void hybridVSSInit(const Zr& secret);// Share the secret using HybridVSS
 	void startAgreement(); // Start DKG as t+1 VSSs have completed
 	void completeDKG(bool share_and_wait); //(Try to) complete DKG of the DecidedVSSs set
@@ -141,7 +148,7 @@ private:
 	void resetState();
 };
 
-int Node::run(bool share_and_wait, const char* existing_share)
+int Node::run(bool share_and_wait)
 {	
   /*cerr<<"Node "<<selfID<< " is ";
   switch(nodeState){
@@ -175,6 +182,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
   fstream timeoutValueStream(timeoutvalueFile, ios::in); 
   if(timeoutValueStream.is_open()) {
    	int t_n, t_t, t_f;
+	bool value_found = false;
   	string line_indicator;
   	while (timeoutValueStream >> line_indicator) {
 		timeoutValueStream >> t_n;
@@ -182,6 +190,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 		timeoutValueStream >> t_f;
 		if (t_n == sysparams.get_n() && t_t == sysparams.get_t()
 			&& t_f == sysparams.get_f()) {
+			value_found = true;
 			timeoutValueStream >> incremental_change;
 			timeoutValueStream.close();
 			break;
@@ -190,11 +199,12 @@ int Node::run(bool share_and_wait, const char* existing_share)
 			timeoutValueStream >> temp;
 		}
   	}
-
-	timeoutLog << "==============================" << endl;
-  	timeoutLog << "Para: n = " << t_n << " t = " << t_t << " f = " << t_f << endl;
-  	timeoutLog << "Incremental Change = " << incremental_change << endl;
-  	timeoutLog << "==============================" << endl;
+	if(value_found) {
+		timeoutLog << "==============================" << endl;
+		timeoutLog << "Para: n = " << t_n << " t = " << t_t << " f = " << t_f << endl;
+		timeoutLog << "Incremental Change = " << incremental_change << endl;
+		timeoutLog << "==============================" << endl;
+	}
 	timeoutValueStream.close();
   }
 
@@ -237,13 +247,7 @@ int Node::run(bool share_and_wait, const char* existing_share)
 	}
 
 	if(share_and_wait) {
-		if(existing_share) {
-			Zr secret(sysparams.get_Pairing(), (unsigned char*)existing_share, strlen(existing_share), 10);
-			hybridVSSInit(secret);
-		} else {
-			Zr secret(sysparams.get_Pairing(), true);
-			hybridVSSInit(secret);
-		}
+		doShare();
 	}
   
   bool running = true;
@@ -275,19 +279,14 @@ int Node::run(bool share_and_wait, const char* existing_share)
 	  }break;
 
 	  case SHARE:{
-		// Phase 0: share a random secret
-		if (ph == 0) {
-			cout<<"Sharing new random secret" << endl;
-			Zr secret(sysparams.get_Pairing(), true);
-			//Initialize a HybridVSS with the above generated secret
-			hybridVSSInit(secret);
-		}
-		// Phase > 0: share existing share
-		else {
-			cout<<"Sharing existing share" << endl;
-			//Initialize a HybridVSS with the known share
-			hybridVSSInit(result.share);
-		}
+		doShare();
+	  }break;
+
+	  case ADD_NODE: {
+		  AddNodeMessage* anm = static_cast<AddNodeMessage*>(um);
+		  if(anm->get_id() > 0) {
+  			buddyset.insert_buddy(anm->get_id(), anm->get_addr(), anm->get_port(), certsDir, anm->get_cert_file());
+		  }
 	  }break;
 
 	 case CONFIRM_LEADER:{
@@ -1138,6 +1137,27 @@ int Node::run(bool share_and_wait, const char* existing_share)
   return 1;
 }
 
+void Node::doShare() 
+{
+	// Phase 0: share a random secret
+	if (ph == 0) {
+		cout<<"Sharing new random secret" << endl;
+		Zr secret(sysparams.get_Pairing(), true);
+		//Initialize a HybridVSS with the above generated secret
+		hybridVSSInit(secret);
+	}
+	// Phase > 0: share existing share
+	else {
+		if(result.share.isIdentity(true)) {
+			cout<<"No existing share - new node?" << endl;
+		} else {
+			cout<<"Sharing existing share" << endl;
+			//Initialize a HybridVSS with the known share
+			hybridVSSInit(result.share);
+		}
+	}
+}
+
 void Node::hybridVSSInit(const Zr& secret){
 
   	//const Pairing& e = sysparams.get_Pairing();
@@ -1313,12 +1333,12 @@ void Node::completeDKG(bool share_and_wait){
 
 	if(share_and_wait) {
 		result.share.dump(stdout,(char*)"Share is ", 10);
-	} else {
-		//DecidedVSSs broadcast and decided VSSs are now completed
-		// Increment phase and reset node state
-		ph++;
-		resetState();
 	}
+
+	//DecidedVSSs broadcast and decided VSSs are now completed
+	// Increment phase and reset node state
+	ph++;
+	resetState();
 }
 
 void Node::resetState()
@@ -1389,8 +1409,8 @@ void printUsage()
 	cerr << "    -l non_responsive_leader_number - Value of non responsive leader (Optional - default " << DEFAULT_NON_RESPONSIVE_LEADER << ")" << endl;
 	cerr << "        0 - Leader is active" << endl;
 	cerr << "        > 0 - Non responsive leader ID" << endl;
-	cerr << "    -r[share] - Run DKG to compute share, print the share, and exit" << endl; 
-	cerr << "        share is optional - if specified DKG will renew based the existing share" << endl;
+	cerr << "    -e share - Set the node share (Only used if phase > 0)" << endl;
+	cerr << "    -r - Immediately run DKG to compute and print share" << endl; 
 	cerr << "    certfile - Certificate File (Required)" << endl;
 	cerr << "    keyfile - Key File (Required)" << endl;
 	cerr << "    contactlist - Node List File (Required)" << endl;
@@ -1425,7 +1445,7 @@ int main(int argc, char **argv)
   bool measure_timing = false;
 
   int c;
-  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:d:l:r::b:v:t")) != -1) {
+  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:d:l:b:v:e:rt")) != -1) {
     switch(c) {
 	  case 'p':
 		portnum = atoi(optarg);
@@ -1460,13 +1480,14 @@ int main(int argc, char **argv)
 	  case 'd':
 	    contactlistdir = optarg;
 		break;
+	  case 'e':
+	    existing_share = optarg;
+		break;
 	  case 'l':
 	    non_responsive_leader_number = atoi(optarg);
 		break;
 	  case 'r':
 	    share_and_wait = true;
-		if(optarg)
-		  existing_share = optarg;
 		break;
 	  case '?':
 	    if (isprint (optopt))
@@ -1496,11 +1517,7 @@ int main(int argc, char **argv)
 
   gnutls_global_init();
   Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, measure_timing, resultslogdir, timeoutvaluefile, INADDR_ANY, portnum, 
-			certfile, keyfile, contactlist, contactlistdir, ph, type, non_responsive_leader_number);
+			certfile, keyfile, contactlist, contactlistdir, ph, type, non_responsive_leader_number, existing_share);
   
-  if(share_and_wait) {
-	return node.run(share_and_wait, existing_share);
-  }
-
-  return node.run(false, NULL);
+  return node.run(share_and_wait);
 }

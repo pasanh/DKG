@@ -117,15 +117,51 @@ BuddySet::~BuddySet()
     gcry_sexp_release(my_dsa_privkey);
 }
 
+void BuddySet::insert_buddy(BuddyID id, in_addr_t addr, in_port_t port, const char* certdir, const string& cert_file)
+{
+	// Determine cert file path
+	string certfilepath;
+	if(cert_file.length() > 0 && cert_file[0] != '/') {
+		string certfilebasepath;
+		if (strlen(certdir) > 0) {
+			certfilebasepath += certdir;
+			if(*(certfilebasepath.rbegin()) != '/') {
+				certfilebasepath += "/";
+			}
+		}
+		certfilepath = certfilebasepath + cert_file;
+	} else {
+		certfilepath = cert_file;
+	}
+
+	// Create and add a ContactEntry for the new buddy
+	ContactEntry ce;
+	ce.addr = addr;
+	ce.port = port;
+	if(contactlist.find(id) != contactlist.end()) {
+		cerr << "Buddy " << id << " already exists!" << endl;
+		return;
+	}
+	contactlist[id] = ce;
+
+	// Read the cert file
+	string cert_data;
+	ifstream certfile;
+	certfile.open(certfilepath.c_str());
+	if (certfile.good()) {
+		getline(certfile, cert_data, '\0');
+		certfile.close();   
+		
+		//Add Buddy and Certificate
+		Buddy *newbuddy = new Buddy(*this, -1, id);//fd = -1 as there is no circuit yet    
+				idmap[newbuddy->get_id()] = newbuddy;
+		newbuddy->set_cert(cert_data);
+	} else cerr << "Certificate doesn't exist for " << id << endl;
+}
+
 void BuddySet::init_contact_list(const char *filename, const char* certdir)
 {
     if (filename == NULL) return;
-		
-	string certfilepath;
-	if (strlen(certdir) > 0) {
-		certfilepath += certdir;
-		certfilepath += "/";
-	}
 
     ifstream file;
     file.open(filename);
@@ -142,27 +178,11 @@ void BuddySet::init_contact_list(const char *filename, const char* certdir)
 		int res = sscanf(nextline.data(), "%d %d.%d.%d.%d %d %s %c",&id, &a1, &a2, &a3, &a4, &port, certfilename, &leader_char);
 		if ((res == 8)&& (leader_char == 'L')) {isleader = true; leader = id;}
 		if (res < 7) {
-	    	cerr << "Bad scanned line: " << nextline << "\n";
+	    	cerr << "Bad scanned line: " << nextline << endl;
 	    	continue;
 		}
-		//Add contact Entry
-		ContactEntry ce;
-		ce.addr = (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
-		ce.port = port;
-		contactlist[id] = ce;
-		
-		//Add Buddy and Certificate
-		string cert;
-		// Read the file
-		ifstream certfile;
-		certfile.open((certfilepath + certfilename).c_str());
-		if (certfile.good()) {
-			getline(certfile, cert, '\0');
-			certfile.close();   
-			Buddy *newbuddy = new Buddy(*this, -1, id);//fd = -1 as there is no circuit yet    
-    	    		idmap[newbuddy->get_id()] = newbuddy;
-			newbuddy->set_cert(cert);
-		} else cerr << "Certificate doesn't exist for " << id<< "\n";
+		// Add new buddy
+		insert_buddy(id, (a1 << 24) + (a2 << 16) + (a3 << 8) + a4, port, certdir, certfilename);
     }
     //If no Leader character (L) present, select first node in the contact list as the one
     if (!isleader) leader = (contactlist.begin())->first;

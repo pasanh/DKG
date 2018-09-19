@@ -26,6 +26,7 @@ my $pairing_param = "$exe_dir/pairing.param";
 my $system_param = "$exe_dir/system.param";
 my $message_log = "$log_dir/message.log";
 my $timeout_log = "$log_dir/timeout.log";
+my $timeout_value = "/dev/null";
 my $contactlist = "$exe_dir/contlist";
 
 my $node = shift;
@@ -53,7 +54,7 @@ my $share_param = '';
 $share_param .= "-r" if(defined($share));
 $share_param .= "$share" if(length($share) > 0);
 
-my $cmd = "$node_cmd -a $pairing_param -s $system_param $log_param $benchmark_param $share_param -d $exe_dir $certfile $keyfile $contactlist";
+my $cmd = "$node_cmd -a $pairing_param -s $system_param -v $timeout_value $log_param $benchmark_param $share_param -d $exe_dir $certfile $keyfile $contactlist";
 print "$cmd\n";
 exec $cmd;
 

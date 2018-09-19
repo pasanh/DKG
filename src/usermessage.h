@@ -30,7 +30,7 @@ typedef enum {IN, OUT} IOType;
 typedef enum {
     USER_MSG_NONE,
 	SHARE, CONFIRM_LEADER, SHARED, RECOVER, RECONSTRUCT, DKG_COMPLETE, 
-	STATE_INFORMATION, SIGN, USER_MSG_PING, EXIT
+	STATE_INFORMATION, SIGN, USER_MSG_PING, EXIT, ADD_NODE
 } UserMessageType;
 
 //class for network messages in the system
@@ -159,5 +159,21 @@ public:
 	BLSSignatureRequestUserMessage(const string& str){msgtype = SIGN; msg = str;}
 		
 	string msg;
+};
+
+class AddNodeMessage: public UserMessage {
+public:
+  AddNodeMessage():
+	id(0), addr(0), port(0), cert_file() { msgtype = ADD_NODE; }
+  AddNodeMessage(const string& str);
+  NodeID get_id() const { return id; }
+  in_addr_t get_addr() const { return addr; }
+  in_port_t get_port() const { return port; }
+  const string& get_cert_file() const { return cert_file; }
+private:
+  NodeID id;
+  in_addr_t addr;
+  in_port_t port;
+  string cert_file;
 };
 #endif

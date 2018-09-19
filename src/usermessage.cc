@@ -46,11 +46,15 @@ UserMessage *UserMessage::read_message()
 	  string paramStr = command.substr(6);
 	  //cerr<<"parameter is "<<paramStr;
 	  return new StateInformationMessage(paramStr);
-    } 	
-	if (!strncmp(cmdstr, "recover ",8)) {
+    }
+	if (!strncmp(cmdstr, "addnode ", 8)) {
 	  string paramStr = command.substr(8);
-	  return new RecoverMessage(paramStr);
-    } 	
+	  return new AddNodeMessage(paramStr);
+	}
+	//if (!strncmp(cmdstr, "recover ",8)) {
+	//  string paramStr = command.substr(8);
+	//  return new RecoverMessage(paramStr);
+    //} 	
 	if (!strncmp(cmdstr, "share",5)) {
 	  //Note that pairing parameters are not available here
 	  return new ShareMessage();
@@ -118,4 +122,21 @@ StateInformationMessage::StateInformationMessage(const string& str){
 	type = ACTIVE_NODES;
   else if(strType == "publicKey")
     type = PUBLIC_KEY;
+}
+
+AddNodeMessage::AddNodeMessage(const string& str):
+  id(0), addr(0), port(0), cert_file(){
+  msgtype = ADD_NODE;
+  char* data = (char*) str.data();
+  char certfilename[200];
+  int nid, a1, a2, a3, a4, nport;
+  int ret = sscanf(data, "%d %d.%d.%d.%d %d %s", &nid, &a1, &a2, &a3, &a4, &nport, certfilename);
+  if(ret != 7) {
+	cerr << "Invalid node specification - Usage: addnode node_id addr port cert_file" << endl;
+	return;
+  }
+  id = nid;
+  addr = (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+  port = nport;
+  cert_file = certfilename;
 }

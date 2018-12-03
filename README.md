@@ -8,6 +8,8 @@ White Paper: [Distributed Key Generation in the Wild](https://eprint.iacr.org/20
 ## Prerequisites:
 * GNU Multiple Precision Arithmetic Library https://gmplib.org/
   * On Ubuntu execute: sudo apt-get install libgmp-dev
+* Other GNU libraries:
+  * sudo apt-get install libgnutls-dev libgcrypt-dev
 * Pairing Based Cryptography Library: https://crypto.stanford.edu/pbc
 
 ## Repository Details:

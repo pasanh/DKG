@@ -734,9 +734,7 @@ LeaderChangeMessage::LeaderChangeMessage(const Buddy *buddy, const string &str, 
 		string DSA = str.substr(str.size()-bodylen- buddy->sig_size(), buddy->sig_size());
 		dkgEchoOrReadyMsgDSAs.insert(pair<NodeID,string>(sender,DSA));
 	  }
-	} else if (msgType == NET_MSG_NONE){
-		if (ph) {msgValid = false;return;}
-	} else {msgValid = false; return;}
+	}
 	unsigned char includeSignature;
 	read_byte(bodyptr,bodylen, includeSignature);
 	if((bool)includeSignature){		

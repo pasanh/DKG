@@ -172,7 +172,7 @@ int Node::run(bool share_and_wait)
   //first sleep for a small duration to get synchronization (will not be required once recovery mech. completes)
   gettimeofday (&now, NULL);
   msgLog << "-Run node " << selfID << " starting at " << now.tv_sec << "." << setw(6) << now.tv_usec
-		  << " with version 8.0" << endl;
+		  << " with version 8.0 and phase " << ph << endl;
 
   //if (selfID != buddyset.get_leader()) sleep (sysparams.get_n()/2);
   gettimeofday (&now, NULL);
@@ -286,6 +286,7 @@ int Node::run(bool share_and_wait)
 		  AddNodeMessage* anm = static_cast<AddNodeMessage*>(um);
 		  if(anm->get_id() > 0) {
   			buddyset.insert_buddy(anm->get_id(), anm->get_addr(), anm->get_port(), certsDir, anm->get_cert_file());
+			cout << "Add node succeeded - new node ID: " << anm->get_id() << endl;
 		  }
 	  }break;
 
@@ -630,6 +631,8 @@ int Node::run(bool share_and_wait)
 						msgLog << "*Threshold : Ready = " << sysparams.get_n() - sysparams.get_t() - sysparams.get_f() << endl;
 						msgLog << "*Received Ready Message Num = " << it->second.getReadyMsgCnt() << endl;
 						msgLog << "*VSS Share is complete for dealer " << it->first << endl;
+						msgLog << "*Node State: " << nodeState << endl;
+						msgLog << "*Current Leader: " << buddyset.get_leader() << endl;
 						msgLog << "============================================" << endl << endl;
 						//sharedMsg.dump(stdout,0);
 						
@@ -1224,6 +1227,7 @@ void Node::startAgreement(){
 		msgLog << "*Ready messages are sending out..." << endl;
 		msgLog << "============================================" << endl << endl;
 
+
 		map <LeaderChangeMessage, map<NodeID, string> >::const_iterator it_leadchg;
 		for(it_leadchg = leaderChangeMsg.begin(); it_leadchg != leaderChangeMsg.end();++it_leadchg)
 			if ((it_leadchg->first.nextLeader == buddyset.get_leader())&&
@@ -1280,9 +1284,6 @@ void Node::completeDKG(bool share_and_wait){
 	//Note that it is possible delete entries from C_final map.
 	//But, I am avoiding that as STL's erase with iterator in a loop is buggy
 	
-	//DecidedVSSs broadcast is now completed. DKG will now eventually complete for sure.
-	nodeState = AGREEMENT_COMPLETED;
-	
 	//check if all VSSs in DecidedVSS are completed or not
 	map<NodeID, CommitmentAndShare>::const_iterator it  = C_final.begin();
 	bool VSSsCompleted = false;
@@ -1300,6 +1301,10 @@ void Node::completeDKG(bool share_and_wait){
 		}
 	}
 	if (!VSSsCompleted) {cerr<<"All VSS not yet complete\n";return;} //All required VSSs are not yet completed	 
+	
+	
+	//DecidedVSSs broadcast is now completed. DKG will now eventually complete for sure.
+	nodeState = AGREEMENT_COMPLETED;
 
 	// Phase = 0: add subshares to create share
 	if (ph == 0) {
@@ -1354,6 +1359,7 @@ void Node::resetState()
 	vssReadyMsg.clear();
 	vssReadyMsgSelected.clear();
 	dkgEchoOrReadyMsgReceived.clear();
+	dkgReadyValidityMsgDSAs.clear();
 	
 	msgLog << "ResetState PHASE: " << ph << " NEW NODE STATE: " << nodeState << endl;
 }

@@ -6,12 +6,14 @@ use File::Path qw(make_path remove_tree);
 use Cwd 'abs_path';
 use Getopt::Long;
 
-my ($log, $share, $benchmark);
+my ($log, $share, $benchmark, $phase, $clist);
 
 GetOptions(
     'r:s'   => \$share,
 	'l'     => \$log,
 	'b'     => \$benchmark,
+	'h:i'   => \$phase,
+	'c:s'   => \$clist,
 );
 
 my $username = $ENV{LOGNAME} || $ENV{USER};
@@ -40,6 +42,10 @@ if($log || $benchmark) {
 	make_path($log_dir);
 }
 
+if($clist) {
+	$contactlist = "$exe_dir/$clist";
+}
+
 my $log_param = '';
 if($log) {
 	$log_param = "-m $message_log -i $timeout_log";
@@ -50,11 +56,16 @@ if($benchmark) {
 	$benchmark_param = "-t -b $log_dir";
 }
 
-my $share_param = '';
-$share_param .= "-r" if(defined($share));
-$share_param .= "$share" if(length($share) > 0);
+my $phase_param = '';
+if($phase) {
+	$phase_param = "-h $phase";
+}
 
-my $cmd = "$node_cmd -a $pairing_param -s $system_param -v $timeout_value $log_param $benchmark_param $share_param -d $exe_dir $certfile $keyfile $contactlist";
+my $share_param = '';
+#$share_param .= "-r" if(defined($share));
+$share_param .= " -e $share" if(length($share) > 0);
+
+my $cmd = "$node_cmd -a $pairing_param -s $system_param -v $timeout_value $phase_param $log_param $benchmark_param $share_param -d $exe_dir $certfile $keyfile $contactlist";
 print "$cmd\n";
 exec $cmd;
 

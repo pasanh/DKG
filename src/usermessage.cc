@@ -47,8 +47,8 @@ UserMessage *UserMessage::read_message()
 	  //cerr<<"parameter is "<<paramStr;
 	  return new StateInformationMessage(paramStr);
     }
-	if (!strncmp(cmdstr, "addnode ", 8)) {
-	  string paramStr = command.substr(8);
+	if (!strncmp(cmdstr, "addnode", 7)) {
+	  string paramStr = command.substr(7);
 	  return new AddNodeMessage(paramStr);
 	}
 	//if (!strncmp(cmdstr, "recover ",8)) {
@@ -130,7 +130,7 @@ AddNodeMessage::AddNodeMessage(const string& str):
   char* data = (char*) str.data();
   char certfilename[200];
   int nid, a1, a2, a3, a4, nport;
-  int ret = sscanf(data, "%d %d.%d.%d.%d %d %s", &nid, &a1, &a2, &a3, &a4, &nport, certfilename);
+  int ret = sscanf(data, " %d %d.%d.%d.%d %d %s", &nid, &a1, &a2, &a3, &a4, &nport, certfilename);
   if(ret != 7) {
 	cerr << "Invalid node specification - Usage: addnode node_id addr port cert_file" << endl;
 	return;

@@ -117,7 +117,7 @@ BuddySet::~BuddySet()
     gcry_sexp_release(my_dsa_privkey);
 }
 
-void BuddySet::insert_buddy(BuddyID id, in_addr_t addr, in_port_t port, const char* certdir, const string& cert_file)
+bool BuddySet::insert_buddy(BuddyID id, in_addr_t addr, in_port_t port, const char* certdir, const string& cert_file)
 {
 	// Determine cert file path
 	string certfilepath;
@@ -140,7 +140,7 @@ void BuddySet::insert_buddy(BuddyID id, in_addr_t addr, in_port_t port, const ch
 	ce.port = port;
 	if(contactlist.find(id) != contactlist.end()) {
 		cerr << "Buddy " << id << " already exists!" << endl;
-		return;
+		return false;
 	}
 	contactlist[id] = ce;
 
@@ -156,7 +156,11 @@ void BuddySet::insert_buddy(BuddyID id, in_addr_t addr, in_port_t port, const ch
 		Buddy *newbuddy = new Buddy(*this, -1, id);//fd = -1 as there is no circuit yet    
 				idmap[newbuddy->get_id()] = newbuddy;
 		newbuddy->set_cert(cert_data);
-	} else cerr << "Certificate doesn't exist for " << id << endl;
+	} else {
+		cerr << "Certificate doesn't exist for " << id << endl;
+		return false;
+	}
+	return true;
 }
 
 void BuddySet::init_contact_list(const char *filename, const char* certdir)

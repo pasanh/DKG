@@ -1336,9 +1336,7 @@ void Node::completeDKG(bool share_and_wait){
 		measure_now(resultsLogDir);
 	}
 
-	if(share_and_wait) {
-		result.share.dump(stdout,(char*)"Share is ", 10);
-	}
+	result.share.dump(stdout,(char*)"Share is ", 10);
 
 	//DecidedVSSs broadcast and decided VSSs are now completed
 	// Increment phase and reset node state

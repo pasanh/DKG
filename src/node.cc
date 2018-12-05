@@ -34,6 +34,7 @@
 #define DEFAULT_SYSTEM_PARAM "system.param"
 #define DEFAULT_TIMEOUTVALUE_FILE "timeout.value"
 #define DEFAULT_MESSAGE_LOG NULL
+#define DEFAULT_ERROR_LOG NULL
 #define DEFAULT_TIMEOUT_LOG NULL
 #define DEFAULT_RESULTS_LOG_DIR "./"
 #define DEFAULT_CONTACTLIST_DIR "./"
@@ -66,7 +67,7 @@ class Node : public Application {
 public:
   Node(
 	const char *pairingfile, const char *sysparamfile,
-	const char* msglogfile, const char* timeoutlogfile,
+	const char* msglogfile, const char* timeoutlogfile, const char* errlogfile,
 	bool measure_timing, const char* resultslogdir, const char* timeoutvaluefile,
 	in_addr_t listen_addr, in_port_t listen_port, const char *certfile, const char *keyfile, const char *contactlistfile, const char* contactlistdir = "",
 	Phase ph = 0, CommitmentType commType = Feldman_Matrix, int nrln = 0, const char* share = NULL
@@ -77,6 +78,7 @@ public:
 	certsDir(contactlistdir)
 {
 	setStreamFile(msgLog, cout, msglogfile);
+	setStreamFile(errLog, cerr, errlogfile);
 	setStreamFile(timeoutLog, cout, timeoutlogfile);
 
 	selfID  = NodeID(buddyset.get_my_id());
@@ -127,6 +129,7 @@ private:
 	TimerID leaderChangeTimerID;
 	
 	ofstream msgLog;
+	ofstream errLog;
 	ofstream timeoutLog;
 	const char* resultsLogDir;
 	const char* timeoutvalueFile;
@@ -150,17 +153,17 @@ private:
 
 int Node::run(bool share_and_wait)
 {	
-  /*cerr<<"Node "<<selfID<< " is ";
+  /*errLog<<"Node "<<selfID<< " is ";
   switch(nodeState){
-  	case LEADER_UNCONFIRMED: cerr<<"not yet confirmed.";break;
-  	case UNDER_RECOVERY: cerr<<"under recovery.";break;
-  	case FUNCTIONAL: cerr<<"functional.";break;
-	case AGREEMENT_STARTED: cerr<<"in state Agreement_Started.";break;
-	case LEADER_CHANGE_STARTED: cerr<<"in state LeaderChange_Started.";break;
-	case AGREEMENT_COMPLETED: cerr<<"in state Agreement_Completed.";break;
-	case DKG_COMPLETED: cerr<<"in state DKG_Completed.";break;		  
+  	case LEADER_UNCONFIRMED: errLog<<"not yet confirmed.";break;
+  	case UNDER_RECOVERY: errLog<<"under recovery.";break;
+  	case FUNCTIONAL: errLog<<"functional.";break;
+	case AGREEMENT_STARTED: errLog<<"in state Agreement_Started.";break;
+	case LEADER_CHANGE_STARTED: errLog<<"in state LeaderChange_Started.";break;
+	case AGREEMENT_COMPLETED: errLog<<"in state Agreement_Completed.";break;
+	case DKG_COMPLETED: errLog<<"in state DKG_Completed.";break;		  
   }
-  cerr<<endl;*/
+  errLog<<endl;*/
 	msgLog << setfill('0');
 	cout << setfill('0');
 	timeoutLog << setfill('0');
@@ -366,7 +369,7 @@ int Node::run(bool share_and_wait)
 	  	break;
 	  default:
 		{
-		  cerr << "Unknown user command " << um->get_type() << endl;
+		  errLog << "Unknown user command " << um->get_type() << endl;
 		}
 		break;
 	  }
@@ -389,7 +392,7 @@ int Node::run(bool share_and_wait)
 			if (valid) {
 			  cout << "Ping from id " <<buddyID <<", timestamp = " << pnm->t << endl;
 			} else {
-			  cerr<<"Received Invalid ping from id " <<buddyID <<", timestamp = " << pnm->t << endl;
+			  errLog<<"Received Invalid ping from id " <<buddyID <<", timestamp = " << pnm->t << endl;
 			}
 		}
 		break;
@@ -401,7 +404,7 @@ int Node::run(bool share_and_wait)
 			//}
 			if(ph > vssSend->ph) {
 			//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for VSSSend "<<vssSend->ph<<" is older than the current phase "<<ph<<endl;
+			  msgLog<<"Phase for VSSSend "<<vssSend->ph<<" is older than the current phase "<<ph<<endl;
 			} else if(ph < vssSend->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -440,9 +443,9 @@ int Node::run(bool share_and_wait)
   						}				
 					} else {
 						break;
-						}// else{ cerr<<"BuddyID is "<<it->first<<" and not"<<buddyID<<endl; it->second.dump(stderr);}
-					//for(it = C.begin(); it != C.end(); ++it){ cerr<<"BuddyID is"<<it->first<<endl; it->second.dump(stderr);} 
-				} else cerr<<"Error with the VSSsend message received at "<<selfID<<" from "<<buddyID<<endl;
+						}// else{ errLog<<"BuddyID is "<<it->first<<" and not"<<buddyID<<endl; it->second.dump(stderr);}
+					//for(it = C.begin(); it != C.end(); ++it){ errLog<<"BuddyID is"<<it->first<<endl; it->second.dump(stderr);} 
+				} else errLog<<"Error with the VSSsend message received at "<<selfID<<" from "<<buddyID<<endl;
 			}							  
 		}
 		break;
@@ -458,7 +461,7 @@ int Node::run(bool share_and_wait)
 
 			if(ph > vssEcho->ph) {
 			//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for VSSEcho "<<vssEcho->ph<<" is older than the current phase "<<ph<<endl;			  
+			  msgLog<<"Phase for VSSEcho "<<vssEcho->ph<<" is older than the current phase "<<ph<<endl;			  
 			} else if(ph < vssEcho->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -484,7 +487,7 @@ int Node::run(bool share_and_wait)
 						it = C.insert(make_pair(vssEcho->dealer, vssEcho->C));
 					}
 
-						//cerr<<vssEcho->dealer<<" inserted with Echo\n";
+						//errLog<<vssEcho->dealer<<" inserted with Echo\n";
 				
 					//Add share and increase Echo count in commitment matrix 	
 					if (!it->second.addEchoMsg(buddyID, vssEcho->alpha)) {
@@ -521,7 +524,7 @@ int Node::run(bool share_and_wait)
 							msgLog << "VSS_READY " << vssReady.get_ID() << " for " << vssReady.dealer << " SENT from " << selfID << " to " << *iter << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << " standard 1" << endl;
 						}
 					}
-				} else cerr<<"Error at "<<selfID<<" with the VSSEcho message received from "<<buddyID<<" for "<<vssEcho->dealer<<endl;
+				} else errLog<<"Error at "<<selfID<<" with the VSSEcho message received from "<<buddyID<<" for "<<vssEcho->dealer<<endl;
 			}
 		}
 		break;
@@ -534,10 +537,10 @@ int Node::run(bool share_and_wait)
 			//if (selfID == buddyset.get_leader()) {
 		//	}
 
-			//cerr<<"Ready Message received from "<<buddyID<<" for "<<vssReady->dealer<<endl;
+			//errLog<<"Ready Message received from "<<buddyID<<" for "<<vssReady->dealer<<endl;
 			if(ph > vssReady->ph) {
 			//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for VSSReady "<<vssReady->ph<<" is older than the current phase "<<ph<<endl;				  
+			  msgLog<<"Phase for VSSReady "<<vssReady->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < vssReady->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -558,7 +561,7 @@ int Node::run(bool share_and_wait)
 					}
 					if (!commitmentAlreadyExists)//C is sent for the first time. Add it
 						it = C.insert(make_pair(vssReady->dealer, vssReady->C));
-						//cerr<<vssReady->dealer<<" inserted with Ready\n";
+						//errLog<<vssReady->dealer<<" inserted with Ready\n";
 					//Add ready share and increase ready count	
 					if (!it->second.addReadyMsg(buddyID, vssReady->alpha)) {
 						// msgLog << "* NOT first time seen the ready message" << endl;
@@ -664,7 +667,7 @@ int Node::run(bool share_and_wait)
 		}
 		break;
 		case VSS_HELP:{
-			//cerr << "VSS_HELP message from" << buddyID << " to " << selfID << endl;
+			//errLog << "VSS_HELP message from" << buddyID << " to " << selfID << endl;
 			gettimeofday(&now, NULL);
 			msgLog << "VSS_HELP * for * RECEIVED from " << buddyID << " to " << selfID << " at " << now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 			// TODO
@@ -673,16 +676,16 @@ int Node::run(bool share_and_wait)
 		break;		
 		case VSS_SHARED:{
 			VSSSharedMessage *vssShared = static_cast<VSSSharedMessage*>(nm);
-			//cerr << "VSS_SHARED for " << vssShared->dealer << " RECEIVED from " << buddyID << " to " << selfID << endl;
+			//errLog << "VSS_SHARED for " << vssShared->dealer << " RECEIVED from " << buddyID << " to " << selfID << endl;
 			gettimeofday(&now, NULL);
 			msgLog << "VSS_SHARED " << vssShared->get_ID() << " for " << vssShared -> dealer << " RECEIVED from " << buddyID << " to " << selfID
 					<< " at " << now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 			if (selfID == buddyset.get_leader()) {
 			}
-			//cerr<<"Shared Message received from "<<buddyID<<endl;
+			//errLog<<"Shared Message received from "<<buddyID<<endl;
 			if(ph > vssShared->ph) {
 				//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for VSSShared "<<vssShared->ph<<" is older than the current phase "<<ph<<endl;				  
+			  msgLog<<"Phase for VSSShared "<<vssShared->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < vssShared->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -711,14 +714,14 @@ int Node::run(bool share_and_wait)
 		
 		case DKG_SEND:{
 			DKGSendMessage *dkgSend = static_cast<DKGSendMessage*>(nm);
-			//cerr << "DKG_SEND RECEIVED from " << buddyID << " to " << selfID << endl;
+			//errLog << "DKG_SEND RECEIVED from " << buddyID << " to " << selfID << endl;
 			gettimeofday(&now, NULL);
 			msgLog << "DKG_SEND " << dkgSend->get_ID() << " for * RECEIVED from " << buddyID << " to " << selfID  << " at " <<
 									now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 			//msgLog<<"DKGSend Message received from "<<buddyID<<endl;
 			if(ph > dkgSend->ph) {
 				//TODO: Actual system need not to display the following messages.
-				cerr<<"Phase for DKGSend "<<dkgSend->ph<<" is older than the current phase "<<ph<<endl;				  
+				msgLog<<"Phase for DKGSend "<<dkgSend->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < dkgSend->ph){
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B  
@@ -760,7 +763,7 @@ int Node::run(bool share_and_wait)
 			msgLog << "DKG_ECHO " << dkgEcho->get_ID() << " for " << dkgEcho ->leader << " RECEIVED from " << buddyID << " to " << selfID << " at " << now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 			if(ph > dkgEcho->ph) {
 				//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for DKGEcho "<<dkgEcho->ph<<" is older than the current phase "<<ph<<endl;				  
+			  msgLog<<"Phase for DKGEcho "<<dkgEcho->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < dkgEcho->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B		
@@ -790,8 +793,8 @@ int Node::run(bool share_and_wait)
 					dkgReadyCnt = 0;
 				else 
 					dkgReadyCnt = ready_it->second.size();				
-				//cerr<<"Current Echo count is "<<echo_it->second.size()<<endl;
-				//cerr<<"Current Ready count is "<<dkgReadyCnt<<endl;
+				//errLog<<"Current Echo count is "<<echo_it->second.size()<<endl;
+				//errLog<<"Current Ready count is "<<dkgReadyCnt<<endl;
 				NodeIDSize echo_threshold = (NodeIDSize)ceil((sysparams.get_n() + sysparams.get_t() + 1.0)/2);				 
 				if(((NodeIDSize)echo_it->second.size() == echo_threshold) && ( dkgReadyCnt < sysparams.get_t() + 1)){
 					//Make Q_bar and M_bar messages, while DKGReady is sent by me
@@ -812,7 +815,7 @@ int Node::run(bool share_and_wait)
 						//if (*iter != selfID){
 						DKGReadyMessage dkgReady(buddyset, buddyset.get_leader(),ph,dkgEcho->DecidedVSSs);
 						buddyset.send_message(*iter, dkgReady);	
-						//cerr<<"DKGReady message is sent to Node "<<*iter<<".\n";
+						//errLog<<"DKGReady message is sent to Node "<<*iter<<".\n";
 						gettimeofday (&now, NULL);
 						msgLog << "DKG_READY " << dkgReady.get_ID() << " for " << dkgReady.leader << " SENT from " << selfID << " to " << *iter << " at " <<  now.tv_sec << "." << setw(6) << now.tv_usec << " standard 1" << endl;
 					}
@@ -827,10 +830,10 @@ int Node::run(bool share_and_wait)
 			gettimeofday(&now, NULL);
 			msgLog << "DKG_READY " << dkgReady->get_ID() << " for " << dkgReady ->leader << " RECEIVED from " << buddyID << " to " << selfID << " at " <<
 																	now.tv_sec << "." << setw(6) << now.tv_usec << endl;
-			//cerr<<"DKGReady Message received from "<<buddyID<<endl;
+			//errLog<<"DKGReady Message received from "<<buddyID<<endl;
 			if(ph > dkgReady->ph) {
 				//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for DKGReady "<<dkgReady->ph<<" is older than the current phase "<<ph<<endl;				  
+			  msgLog<<"Phase for DKGReady "<<dkgReady->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < dkgReady->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B		
@@ -916,7 +919,7 @@ int Node::run(bool share_and_wait)
 			gettimeofday(&now, NULL);
 			msgLog << "DKG_HELP * for * RECEIVED from " << buddyID << " to " << selfID << " at " <<
 								now.tv_sec << "." << setw(6) << now.tv_usec << endl;
-			//cerr << "DKG_HELP from" << buddyID << " to " << selfID << endl;
+			//errLog << "DKG_HELP from" << buddyID << " to " << selfID << endl;
 		}
 		break;
 		case LEADER_CHANGE:{
@@ -925,7 +928,7 @@ int Node::run(bool share_and_wait)
 			msgLog << "LEADER_CHANGE " << leaderChange->get_ID() << " for " << leaderChange ->nextLeader << " RECEIVED from " << buddyID << " to " << selfID << " at " << now.tv_sec << "." << setw(6) << now.tv_usec << endl;
 			if(ph > leaderChange->ph) {
 				//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for LeaderChange "<<leaderChange->ph<<" is older than the current phase "<<ph<<endl;				  
+			  msgLog<<"Phase for LeaderChange "<<leaderChange->ph<<" is older than the current phase "<<ph<<endl;				  
 			} else if(ph < leaderChange->ph) {
 				//TODO: Messages from the future phase should be stored. 
 				//Do it when I make decision about the recovery set B
@@ -954,7 +957,7 @@ int Node::run(bool share_and_wait)
 						if(activeNodes[index] == leaderChange->nextLeader) {index_received = index; break;}
 					for(NodeID index = 0; index < activeNodes.size(); ++index)
 						if(activeNodes[index] == nextSmallestLeader) {index_smallest = index; break;}
-					//cerr<<"index_L, index_received, index_smallest resp. are "<<index_L <<" "<< index_received<<" "<< index_smallest<<endl;				
+					//errLog<<"index_L, index_received, index_smallest resp. are "<<index_L <<" "<< index_received<<" "<< index_smallest<<endl;				
 					if(((index_smallest < index_L)&&(index_L < index_received))||
 						((index_received < index_smallest)&&(index_smallest < index_L))||
 						((index_L < index_received)&&(index_received < index_smallest)))
@@ -1030,8 +1033,8 @@ int Node::run(bool share_and_wait)
 							startAgreement();
 						}
 					}					
-				}// else cerr<<"Invalid LeaderChange Message (2) received from "<<buddyID<<endl;
-		    }//else cerr<<"Invalid LeaderChange Message (1) received from "<<buddyID<<endl;
+				}// else errLog<<"Invalid LeaderChange Message (2) received from "<<buddyID<<endl;
+		    }//else errLog<<"Invalid LeaderChange Message (1) received from "<<buddyID<<endl;
 		}
 		break;
 		case RECONSTRUCT_SHARE:{
@@ -1054,18 +1057,18 @@ int Node::run(bool share_and_wait)
 				}	
 				PublicKeyExchangeMessage pubkeySend(buddyset,quorumPublicKey);
 				buddyset.send_message(buddyID,pubkeySend);
-				//cerr<<"Public Key is sent to client "<<buddyID<<endl;
+				//errLog<<"Public Key is sent to client "<<buddyID<<endl;
 		}
 		break;
 		case BLS_SIGNATURE_REQUEST:
 		{ 
-			cout << "BLS_SIGNATURE_REQUEST message from" <<
+			msgLog << "BLS_SIGNATURE_REQUEST message from" <<
 					buddyID << " to " << selfID << endl;
 		 	BLSSignatureRequestMessage *signatureRequest = static_cast<BLSSignatureRequestMessage*>(nm);
-			//cerr << "BLS_SIGNATURE_REQUEST received RECEIVED from " << buddyID<<endl;
+			//errLog << "BLS_SIGNATURE_REQUEST received RECEIVED from " << buddyID<<endl;
 			if(ph > signatureRequest->ph) {
 				//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for BLS_SIGNATURE_REQUEST"<<signatureRequest->ph<<" is older than the current phase "<<ph<<endl;
+			  msgLog<<"Phase for BLS_SIGNATURE_REQUEST"<<signatureRequest->ph<<" is older than the current phase "<<ph<<endl;
 			} else {
 				//In practice it is required to check the state of the node.
 				//If it has not yet completed the DKG, then it should send appropriate messages to the client
@@ -1077,18 +1080,18 @@ int Node::run(bool share_and_wait)
 					signatureShare = msgHashG1^result.share;
 		  			BLSSignatureResponseMessage response(buddyset,ph,msgHashG1,signatureShare);
 		  			buddyset.send_message(buddyID,response);
-				}//else cerr<<"Client siganture is incorrect.\n";				
+				}//else errLog<<"Client siganture is incorrect.\n";				
 		  	}
 		}
 		break;
 		case WRONG_BLS_SIGNATURES:
 		{
-			cout << "WRONG_BLS_SIGNATURES message from" << buddyID << endl;
+			msgLog << "WRONG_BLS_SIGNATURES message from" << buddyID << endl;
 			WrongBLSSignaturesMessage *wrongSignatures = static_cast<WrongBLSSignaturesMessage*>(nm);
-			//cerr << "WRONG_BLS_SIGNATURES received RECEIVED from " << buddyID<<endl;
+			//errLog << "WRONG_BLS_SIGNATURES received RECEIVED from " << buddyID<<endl;
 			if(ph > wrongSignatures->ph) {
 				//TODO: Actual system need not to display the following messages.
-			  cerr<<"Phase for WRONG_BLS_SIGNATURES"<< wrongSignatures->ph<<" is older than the current phase "<<ph<<endl;
+			  msgLog<<"Phase for WRONG_BLS_SIGNATURES"<< wrongSignatures->ph<<" is older than the current phase "<<ph<<endl;
 			} else {
 				const Pairing& e = sysparams.get_Pairing();
 				map <NodeID, G1> correctSignatures;
@@ -1103,7 +1106,7 @@ int Node::run(bool share_and_wait)
 		}
 		break;		
 		default:{
-			cerr << "Unknown network message received\n"<<nm->get_message_type();
+			errLog << "Unknown network message received\n"<<nm->get_message_type();
 		}
 		break;
 		}
@@ -1129,13 +1132,13 @@ int Node::run(bool share_and_wait)
 			changePhase();
 		}break;
 		default:{
-			  cerr<<"Unknown timer message received "<<tm->get_type() << endl;
+			  errLog<<"Unknown timer message received "<<tm->get_type() << endl;
 		}break;
 	    }		
   	  }break;
   	}
   	delete m;
-  	//cerr<<endl;  	
+  	//errLog<<endl;  	
   }//Check with Ian about the return value
   return 1;
 }
@@ -1181,7 +1184,7 @@ void Node::hybridVSSInit(const Zr& secret){
 
   //sending send messages
   vector<NodeID>::iterator iter;
-  //cerr << "Sending sharing secret" << endl;
+  //errLog << "Sending sharing secret" << endl;
   for(iter = activeNodes.begin();iter != activeNodes.end(); ++iter){
   	Zr nodeZr = Zr(sysparams.get_Pairing(),(long int)*iter);
 	Polynomial a = fxy(nodeZr);
@@ -1196,7 +1199,7 @@ void Node::hybridVSSInit(const Zr& secret){
 			<< " standard 1" << endl;
 
   }					
-	//  cerr << endl << endl;
+	//  errLog << endl << endl;
 }
 
 void Node::startAgreement(){
@@ -1300,7 +1303,7 @@ void Node::completeDKG(bool share_and_wait){
 			break;
 		}
 	}
-	if (!VSSsCompleted) {cerr<<"All VSS not yet complete\n";return;} //All required VSSs are not yet completed	 
+	if (!VSSsCompleted) {errLog<<"All VSS not yet complete\n";return;} //All required VSSs are not yet completed	 
 	
 	
 	//DecidedVSSs broadcast is now completed. DKG will now eventually complete for sure.
@@ -1337,6 +1340,7 @@ void Node::completeDKG(bool share_and_wait){
 	}
 
 	result.share.dump(stdout,(char*)"Share is ", 10);
+	fflush(stdout);
 
 	//DecidedVSSs broadcast and decided VSSs are now completed
 	// Increment phase and reset node state
@@ -1401,6 +1405,7 @@ void printUsage()
 	cerr << "    -s system_param - System Parameter File (Optional - default \"" << DEFAULT_SYSTEM_PARAM << "\")" << endl;
 	cerr << "    -m messagelogfile - Message Log File (Optional - default stdout)" << endl;
 	cerr << "    -i timeoutlogfile - Timeout Log File (Optional - default stdout)" << endl;
+	cerr << "    -g errorlogfile - Error Log File (Optional - default stderr)" << endl;
 	cerr << "    -t - Measure timings - (Optional - default off)" << endl;
 	cerr << "    -b resultslogdir - Directory to store timeing results (Optional - default \"" << DEFAULT_RESULTS_LOG_DIR << "\")" << endl;
 	cerr << "        results will be stored in the file dkg_[NODEID] where [NODEID] is the node's identifier" << endl;
@@ -1437,6 +1442,7 @@ int main(int argc, char **argv)
   const char *pairing_param = DEFAULT_PAIRING_PARAM;
   const char *system_param = DEFAULT_SYSTEM_PARAM;
   const char *messagelogfile = DEFAULT_MESSAGE_LOG;
+  const char *errorlogfile = DEFAULT_ERROR_LOG;
   const char *timeoutlogfile = DEFAULT_TIMEOUT_LOG;
   const char *timeoutvaluefile = DEFAULT_TIMEOUTVALUE_FILE;
   const char *resultslogdir = DEFAULT_RESULTS_LOG_DIR;
@@ -1449,7 +1455,7 @@ int main(int argc, char **argv)
   bool measure_timing = false;
 
   int c;
-  while ((c = getopt(argc, argv, "p:a:s:m:i:h:c:d:l:b:v:e:rt")) != -1) {
+  while ((c = getopt(argc, argv, "p:a:s:m:g:i:h:c:d:l:b:v:e:rt")) != -1) {
     switch(c) {
 	  case 'p':
 		portnum = atoi(optarg);
@@ -1462,6 +1468,9 @@ int main(int argc, char **argv)
 		break;
 	  case 'm':
 	    messagelogfile = optarg;
+		break;
+	  case 'g':
+	    errorlogfile = optarg;
 		break;
 	  case 'i':
 	    timeoutlogfile = optarg;
@@ -1520,7 +1529,7 @@ int main(int argc, char **argv)
   accessOrExit(contactlist, R_OK);
 
   gnutls_global_init();
-  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, measure_timing, resultslogdir, timeoutvaluefile, INADDR_ANY, portnum, 
+  Node node(pairing_param, system_param, messagelogfile, timeoutlogfile, errorlogfile, measure_timing, resultslogdir, timeoutvaluefile, INADDR_ANY, portnum, 
 			certfile, keyfile, contactlist, contactlistdir, ph, type, non_responsive_leader_number, existing_share);
   
   return node.run(share_and_wait);
